@@ -14,6 +14,9 @@
         <router-link to="/signin">
           <button class="btn outline">Sign in</button>
         </router-link>
+        <router-link to="/dashboard">
+          <button class="btn outline">Dashboard</button>
+        </router-link>
       </div>
     </div>
   </div>
@@ -53,17 +56,18 @@
   gap: 25px;
 }
 
-.btn {
-  background: #a40000;
-  color: white;
-  border: none;
-  padding: 14px 36px;
-  font-size: 18px;
+.btn,
+.btn.outline {
+  background-color: #8b0000 !important;
+  color: white !important;
+  border: none !important;
+  padding: 8px 30px;
+  font-size: 14px;
   border-radius: 30px;
   cursor: pointer;
-  transition: all 0.3s ease;
   font-family: "Segoe UI", sans-serif;
   box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+  transition: none;
 }
 
 .btn:hover {
@@ -80,5 +84,17 @@
 .btn.outline:hover {
   background: #a40000;
   color: white;
+}
+.btn:hover,
+.btn:focus,
+.btn:active,
+.btn.outline:hover,
+.btn.outline:focus,
+.btn.outline:active {
+  background-color: #8b0000 !important;
+  color: white !important;
+  transform: none !important;
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2) !important;
+  border: none !important;
 }
 </style>
