@@ -37,7 +37,14 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  font-family: "Segoe Script", cursive;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif !important;
 }
 
 .login-box {

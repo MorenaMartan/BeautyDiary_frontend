@@ -23,12 +23,26 @@
 
         <tbody>
           <tr v-for="time in times" :key="time">
-            <td class="fw-semibold">{{ time }}</td>
+            <td class="fw-semibold" style="background-color: #f8f9fa">
+              {{ time }}
+            </td>
             <td
               v-for="employee in employees"
               :key="employee + time"
-              @click="openModal(employee, time)"
-              style="cursor: pointer"
+              @click="
+                isWithinWorkHours(employee, time)
+                  ? openModal(employee, time)
+                  : null
+              "
+              :style="{
+                backgroundColor: isWithinWorkHours(employee, time)
+                  ? '#f8f9fa'
+                  : 'rgba(255,255,255,0.7)',
+                cursor: isWithinWorkHours(employee, time)
+                  ? 'pointer'
+                  : 'not-allowed',
+                color: '#8b0000',
+              }"
             >
               {{ getCellData(employee, time) }}
             </td>
@@ -196,6 +210,47 @@ const deleteData = () => {
   }
 
   closeModal();
+};
+const employeeWorkHours = {
+  Tara: {
+    Monday: { start: "07:00", end: "15:00" },
+    Tuesday: { start: "08:00", end: "16:00" },
+    Wednesday: { start: "07:00", end: "15:00" },
+    Thursday: { start: "08:00", end: "16:00" },
+    Friday: { start: "07:00", end: "15:00" },
+    Saturday: { start: "-", end: "-" },
+    Sunday: { start: "-", end: "-" },
+  },
+  Luna: {
+    Monday: { start: "10:00", end: "18:00" },
+    Tuesday: { start: "10:00", end: "18:00" },
+    Wednesday: { start: "10:00", end: "18:00" },
+    Thursday: { start: "10:00", end: "18:00" },
+    Friday: { start: "10:00", end: "18:00" },
+    Saturday: { start: "-", end: "-" },
+    Sunday: { start: "-", end: "-" },
+  },
+  Ana: {
+    Monday: { start: "09:00", end: "17:00" },
+    Tuesday: { start: "09:00", end: "17:00" },
+    Wednesday: { start: "09:00", end: "17:00" },
+    Thursday: { start: "09:00", end: "17:00" },
+    Friday: { start: "09:00", end: "17:00" },
+    Saturday: { start: "-", end: "-" },
+    Sunday: { start: "-", end: "-" },
+  },
+};
+const isWithinWorkHours = (employee, time) => {
+  if (!employeeWorkHours[employee]) return false;
+
+  const day = currentDate.value.toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+  const work = employeeWorkHours[employee][day];
+
+  if (!work || work.start === "-" || work.end === "-") return false;
+
+  return time >= work.start && time <= work.end;
 };
 </script>
 
