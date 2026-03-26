@@ -85,11 +85,11 @@
             <div v-if="showClientDropdown" class="dropdown-list">
               <div
                 v-for="c in filteredClients"
-                :key="c"
+                :key="c.name + c.surname"
                 @click="selectClient(c)"
                 class="dropdown-item-custom"
               >
-                {{ c }}
+                {{ c.name }} {{ c.surname }}
               </div>
             </div>
           </div>
@@ -107,8 +107,34 @@
 
 <script setup>
 import { ref, computed } from "vue";
+import { clients } from "@/data/clientsData";
+import { employeesData } from "@/data/employeesData.js";
+
+const clientsList = ref(clients);
+
+const clientSearch = ref("");
+const selectedClient = ref("");
+const showClientDropdown = ref(false);
+
+const filteredClients = computed(() =>
+  clientsList.value.filter((c) =>
+    `${c.name} ${c.surname}`
+      .toLowerCase()
+      .includes(clientSearch.value.toLowerCase()),
+  ),
+);
 
 const currentDate = ref(new Date());
+
+const employeesMap = computed(() => {
+  const map = {};
+  employeesData.forEach((emp) => {
+    map[emp.name] = emp;
+  });
+  return map;
+});
+
+const employees = computed(() => employeesData.map((e) => e.name));
 
 const prevDay = () => {
   currentDate.value.setDate(currentDate.value.getDate() - 1);
@@ -130,8 +156,6 @@ const formattedDate = computed(() => {
   return currentDate.value.toLocaleDateString(undefined, options);
 });
 
-const employees = ["Luna", "Petra", "Ana"];
-
 const times = [];
 for (let hour = 7; hour <= 22; hour++) {
   for (let min of [0, 15, 30, 45]) {
@@ -140,32 +164,17 @@ for (let hour = 7; hour <= 22; hour++) {
     times.push(`${h}:${m}`);
   }
 }
+
 const showModal = ref(false);
 const selectedEmployee = ref("");
 const selectedTime = ref("");
 const selectedTreatment = ref("");
-const clientSearch = ref("");
-const selectedClient = ref("");
-const showClientDropdown = ref(false);
 
 const treatments = ref(["Masaža", "Manikura", "Pedikura"]);
-const clients = ref([
-  "Ivan Horvat",
-  "Ana Kovač",
-  "Petra Marić",
-  "Marko Novak",
-  "Luka Babić",
-]);
-
-const filteredClients = computed(() => {
-  return clients.value.filter((c) =>
-    c.toLowerCase().includes(clientSearch.value.toLowerCase()),
-  );
-});
 
 const selectClient = (client) => {
-  selectedClient.value = client;
-  clientSearch.value = client;
+  selectedClient.value = `${client.name} ${client.surname}`;
+  clientSearch.value = selectedClient.value;
   showClientDropdown.value = false;
 };
 
@@ -174,7 +183,12 @@ const schedule = ref({});
 const openModal = (employee, time) => {
   selectedEmployee.value = employee;
   selectedTime.value = time;
+
   selectedTreatment.value = "";
+  selectedClient.value = "";
+  clientSearch.value = "";
+  showClientDropdown.value = false;
+
   showModal.value = true;
 };
 
@@ -201,6 +215,7 @@ const getCellData = (employee, time) => {
 
   return `${entry.treatment} - ${entry.client}`;
 };
+
 const deleteData = () => {
   if (
     schedule.value[selectedEmployee.value] &&
@@ -211,49 +226,29 @@ const deleteData = () => {
 
   closeModal();
 };
-const employeeWorkHours = {
-  Tara: {
-    Monday: { start: "07:00", end: "15:00" },
-    Tuesday: { start: "08:00", end: "16:00" },
-    Wednesday: { start: "07:00", end: "15:00" },
-    Thursday: { start: "08:00", end: "16:00" },
-    Friday: { start: "07:00", end: "15:00" },
-    Saturday: { start: "-", end: "-" },
-    Sunday: { start: "-", end: "-" },
-  },
-  Luna: {
-    Monday: { start: "10:00", end: "18:00" },
-    Tuesday: { start: "10:00", end: "18:00" },
-    Wednesday: { start: "10:00", end: "18:00" },
-    Thursday: { start: "10:00", end: "18:00" },
-    Friday: { start: "10:00", end: "18:00" },
-    Saturday: { start: "-", end: "-" },
-    Sunday: { start: "-", end: "-" },
-  },
-  Ana: {
-    Monday: { start: "09:00", end: "17:00" },
-    Tuesday: { start: "09:00", end: "17:00" },
-    Wednesday: { start: "09:00", end: "17:00" },
-    Thursday: { start: "09:00", end: "17:00" },
-    Friday: { start: "09:00", end: "17:00" },
-    Saturday: { start: "-", end: "-" },
-    Sunday: { start: "-", end: "-" },
-  },
-};
-const isWithinWorkHours = (employee, time) => {
-  if (!employeeWorkHours[employee]) return false;
 
-  const day = currentDate.value.toLocaleDateString("en-US", {
-    weekday: "long",
-  });
-  const work = employeeWorkHours[employee][day];
+const isWithinWorkHours = (employee, time) => {
+  const emp = employeesMap.value[employee];
+  if (!emp) return false;
+
+  const days = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+
+  const day = days[currentDate.value.getDay()];
+  const work = emp.schedule[day];
 
   if (!work || work.start === "-" || work.end === "-") return false;
 
   return time >= work.start && time <= work.end;
 };
 </script>
-
 <style scoped>
 .btn-danger {
   background: #8b0000;
@@ -268,6 +263,8 @@ const isWithinWorkHours = (employee, time) => {
 }
 
 table {
+  table-layout: fixed;
+  width: 100%;
   border-radius: 16px;
 }
 
@@ -279,6 +276,19 @@ thead th {
 table td {
   background: rgba(255, 255, 255, 0.7);
   color: #8b0000;
+}
+table th,
+table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+table th:first-child,
+table td:first-child {
+  width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .modal-backdrop-custom {
   position: fixed;
