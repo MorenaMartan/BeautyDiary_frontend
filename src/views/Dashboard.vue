@@ -70,8 +70,7 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from "vue";
+<script>
 import { useRouter } from "vue-router";
 import background from "@/assets/background.png";
 
@@ -81,19 +80,35 @@ import Clients from "@/components/Clients.vue";
 import Sales from "@/components/Sales.vue";
 import Settings from "@/components/Settings.vue";
 
-const router = useRouter();
-const activeComponent = ref("Calendar");
+export default {
+  data() {
+    return {
+      activeComponent: "Calendar",
+      router: useRouter(),
+      background,
+      components: {
+        Calendar,
+        Employees,
+        Clients,
+        Sales,
+        Settings,
+      },
+    };
+  },
 
-const openMenu = () => console.log("Menu clicked");
-const openProfile = () => console.log("Profile clicked");
-const logout = () => router.push("/");
+  methods: {
+    openMenu() {
+      console.log("Menu clicked");
+    },
 
-const components = {
-  Calendar,
-  Employees,
-  Clients,
-  Sales,
-  Settings,
+    openProfile() {
+      console.log("Profile clicked");
+    },
+
+    logout() {
+      this.router.push("/");
+    },
+  },
 };
 </script>
 

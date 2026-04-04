@@ -519,20 +519,23 @@ export default {
   },
 
   mounted() {
-    this.employees = employeesData.map((emp) => {
-      const schedule = { ...emp.schedule };
+    this.employees = employeesData;
+
+    this.employees.forEach((emp) => {
+      if (!emp.schedule) emp.schedule = {};
+
       this.scheduleDays.forEach((d) => {
-        if (!schedule[d.name]) schedule[d.name] = { start: "-", end: "-" };
+        if (!emp.schedule[d.name]) {
+          emp.schedule[d.name] = { start: "-", end: "-" };
+        }
       });
-      return {
-        ...emp,
-        schedule,
-        productOrders: emp.productOrders?.length
-          ? emp.productOrders
-          : [{ text: "", checked: false }],
-        reviews: emp.reviews || [],
-        vacations: emp.vacations || [],
-      };
+
+      if (!emp.productOrders?.length) {
+        emp.productOrders = [{ text: "", checked: false }];
+      }
+
+      if (!emp.reviews) emp.reviews = [];
+      if (!emp.vacations) emp.vacations = [];
     });
   },
 };
