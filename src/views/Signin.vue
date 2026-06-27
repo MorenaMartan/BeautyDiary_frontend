@@ -31,6 +31,7 @@
 
 <script>
 import { clients, createClient } from "@/data/clientsData";
+import { api } from "@/services/api";
 
 export default {
   data() {
@@ -46,7 +47,23 @@ export default {
     };
   },
   methods: {
-    signIn() {
+    async signIn() {
+      try {
+        const { user } = await api.signup({
+          ...this.form,
+          username: this.form.name,
+          password: this.form.password || this.form.name.toLowerCase(),
+        });
+        localStorage.setItem("beautyDiaryUser", JSON.stringify(user));
+        this.$router.push("/dashboard");
+        return;
+      } catch (error) {
+        if (!import.meta.env.DEV) {
+          alert(error.message);
+          return;
+        }
+      }
+
       const client = createClient({
         ...this.form,
         username: this.form.name,

@@ -1,9 +1,11 @@
-const API_URL = import.meta.env.VITE_API_URL || "/api";
+const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 const FALLBACK_API_URL = "http://localhost:3000/api";
+const USE_LOCAL_FALLBACK = import.meta.env.DEV && API_URL !== FALLBACK_API_URL;
 
 async function request(path, options = {}) {
   const { headers, ...requestConfig } = options;
   const requestOptions = {
+    cache: "no-store",
     ...requestConfig,
     headers: {
       "Content-Type": "application/json",
@@ -16,14 +18,14 @@ async function request(path, options = {}) {
   try {
     response = await fetch(`${API_URL}${path}`, requestOptions);
   } catch (error) {
-    if (API_URL !== FALLBACK_API_URL) {
+    if (USE_LOCAL_FALLBACK) {
       response = await fetch(`${FALLBACK_API_URL}${path}`, requestOptions);
     } else {
       throw error;
     }
   }
 
-  if (!response.ok && API_URL !== FALLBACK_API_URL) {
+  if (!response.ok && USE_LOCAL_FALLBACK) {
     const contentType = response.headers.get("content-type") || "";
     if (response.status === 404 || !contentType.includes("application/json")) {
       response = await fetch(`${FALLBACK_API_URL}${path}`, requestOptions);
@@ -40,10 +42,21 @@ async function request(path, options = {}) {
   }
 
   if (response.status === 204) return null;
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      "API is not returning JSON. Check VITE_API_URL in Vercel and redeploy the frontend.",
+    );
+  }
+
   return response.json();
 }
 
 export const api = {
+  login: (data) => request("/auth/login", { method: "POST", body: JSON.stringify(data) }),
+  signup: (data) => request("/auth/signup", { method: "POST", body: JSON.stringify(data) }),
+
   getClients: () => request("/clients"),
   createClient: (data) => request("/clients", { method: "POST", body: JSON.stringify(data) }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: "PATCH", body: JSON.stringify(data) }),

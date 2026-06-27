@@ -30,6 +30,7 @@
 
 <script>
 import { login } from "@/data/auth";
+import { api } from "@/services/api";
 
 export default {
   data() {
@@ -40,7 +41,21 @@ export default {
     };
   },
   methods: {
-    handleLogin() {
+    async handleLogin() {
+      this.error = "";
+
+      try {
+        const { user } = await api.login({ username: this.username, password: this.password });
+        localStorage.setItem("beautyDiaryUser", JSON.stringify(user));
+        this.$router.push("/dashboard");
+        return;
+      } catch (error) {
+        if (!import.meta.env.DEV) {
+          this.error = error.message || "Wrong username or password.";
+          return;
+        }
+      }
+
       const user = login(this.username, this.password);
       if (!user) {
         this.error = "Wrong username or password.";

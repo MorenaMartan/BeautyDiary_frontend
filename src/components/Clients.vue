@@ -237,7 +237,11 @@ export default {
       this.clientsList = await api.getClients();
     } catch (error) {
       console.error(error);
-      this.clientsList = clients;
+      if (import.meta.env.DEV) {
+        this.clientsList = clients;
+      } else {
+        alert(error.message);
+      }
     }
   },
 };

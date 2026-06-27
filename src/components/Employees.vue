@@ -629,7 +629,11 @@ export default {
       this.selectedSpecialty = savedSpecialties[0] || "";
     } catch (error) {
       console.error(error);
-      this.employees = employeesData;
+      if (import.meta.env.DEV) {
+        this.employees = employeesData;
+      } else {
+        alert(error.message);
+      }
     }
 
     this.employees.forEach((emp) => {
