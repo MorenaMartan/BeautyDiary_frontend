@@ -52,6 +52,10 @@
             <canvas ref="treatmentsChart"></canvas>
             <button class="btn title-btn">Treatments</button>
           </div>
+          <div class="chart-container">
+            <canvas ref="earningsChart"></canvas>
+            <button class="btn title-btn">Earnings</button>
+          </div>
         </div>
 
         <button class="btn export-main-btn" @click="exportPDFPreview">
@@ -64,28 +68,36 @@
 
 <script>
 import { appointments } from "@/data/appointments";
+import { employeesData } from "@/data/employeesData";
+import { getCurrentUser } from "@/data/auth";
+import { api } from "@/services/api";
 import Chart from "chart.js/auto";
 
 export default {
   name: "Sales",
+  props: {
+    currentUser: {
+      type: Object,
+      default: () => getCurrentUser(),
+    },
+  },
   data() {
     const today = new Date();
     const monthValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
     return {
       search: "",
-      selectedMenu: null,
-      selectedDate: "2026-04-06",
+      selectedMenu: "Daily sales",
+      selectedDate: today.toISOString().slice(0, 10),
       selectedMonth: monthValue,
+      appointmentsList: appointments,
+      employeesList: employeesData,
+      refreshTimer: null,
       menuItems: [
         "Daily sales",
         "Monthly sales",
-        "Termins",
-        "Clients",
-        "Employees",
-        "Payments",
       ],
-      charts: { employees: null, hours: null, treatments: null },
-      chartData: { employees: {}, hours: {}, treatments: {} },
+      charts: { employees: null, hours: null, treatments: null, earnings: null },
+      chartData: { employees: {}, hours: {}, treatments: {}, earnings: {} },
       months: [
         { value: "2026-01", label: "January" },
         { value: "2026-02", label: "February" },
@@ -103,6 +115,10 @@ export default {
     };
   },
   computed: {
+    visibleEmployees() {
+      if (this.currentUser.role === "Admin") return this.employeesList;
+      return this.employeesList.filter((employee) => employee.name === this.currentUser.name);
+    },
     filteredMenu() {
       return this.menuItems.filter((m) =>
         m.toLowerCase().includes(this.search.toLowerCase()),
@@ -118,17 +134,23 @@ export default {
       });
     },
     filteredAppointments() {
+      const employeeNames = this.visibleEmployees.map((employee) => employee.name);
+      const data = this.appointmentsList.filter(
+        (appointment) =>
+          appointment.status !== "cancelled" && employeeNames.includes(appointment.beautician),
+      );
+
       if (this.selectedMenu === "Daily sales") {
-        return appointments.filter((a) =>
+        return data.filter((a) =>
           a.dayandhour.startsWith(this.selectedDate),
         );
       }
       if (this.selectedMenu === "Monthly sales") {
-        return appointments.filter((a) =>
+        return data.filter((a) =>
           a.dayandhour.startsWith(this.selectedMonth),
         );
       }
-      return appointments;
+      return data;
     },
   },
   watch: {
@@ -140,21 +162,56 @@ export default {
     },
   },
   methods: {
+    async loadSalesData() {
+      try {
+        const [employees, savedAppointments] = await Promise.all([
+          api.getEmployees(),
+          api.getAppointments(),
+        ]);
+
+        this.employeesList = employees;
+        this.appointmentsList = savedAppointments;
+        this.$nextTick(() => this.createCharts());
+      } catch (error) {
+        console.error(error);
+      }
+    },
     selectMenu(item) {
       this.selectedMenu = item;
       this.$nextTick(() => this.createCharts());
     },
     getSharedChartOptions() {
-      return { responsive: true, maintainAspectRatio: false };
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+          },
+        },
+      };
     },
     createCharts() {
+      if (
+        !this.$refs.employeesChart ||
+        !this.$refs.hoursChart ||
+        !this.$refs.treatmentsChart ||
+        !this.$refs.earningsChart
+      ) return;
+
       const data = this.filteredAppointments;
       this.createEmployeesChart(data);
       this.createHoursChart(data);
       this.createTreatmentsChart(data);
+      this.createEarningsChart(data);
     },
     createEmployeesChart(data) {
       const counts = {};
+      this.visibleEmployees.forEach((employee) => {
+        counts[employee.name] = 0;
+      });
+
       data.forEach(
         (a) => (counts[a.beautician] = (counts[a.beautician] || 0) + 1),
       );
@@ -177,10 +234,14 @@ export default {
     },
     createHoursChart(data) {
       const counts = {};
+      this.visibleEmployees.forEach((employee) => {
+        counts[employee.name] = 0;
+      });
+
       data.forEach((a) => {
         const employee = a.beautician;
         counts[employee] =
-          (counts[employee] || 0) + Number(a.duration || a.hours || 1);
+          (counts[employee] || 0) + Number(a.duration || a.hours || 0) / 60;
       });
       this.chartData.hours = counts;
       this.charts.hours?.destroy();
@@ -201,6 +262,11 @@ export default {
     },
     createTreatmentsChart(data) {
       const counts = {};
+      const treatmentNames = [...new Set(this.appointmentsList.map((appointment) => appointment.treatment))];
+      treatmentNames.forEach((treatment) => {
+        if (treatment) counts[treatment] = 0;
+      });
+
       data.forEach(
         (a) => (counts[a.treatment] = (counts[a.treatment] || 0) + 1),
       );
@@ -215,6 +281,34 @@ export default {
               label: "Treatments",
               data: Object.values(counts),
               backgroundColor: "#5a0f0f",
+            },
+          ],
+        },
+        options: this.getSharedChartOptions(),
+      });
+    },
+    createEarningsChart(data) {
+      const earnings = {};
+      this.visibleEmployees.forEach((employee) => {
+        earnings[employee.name] = 0;
+      });
+
+      data.forEach((appointment) => {
+        earnings[appointment.beautician] =
+          (earnings[appointment.beautician] || 0) + Number(appointment.price || 0);
+      });
+
+      this.chartData.earnings = earnings;
+      this.charts.earnings?.destroy();
+      this.charts.earnings = new Chart(this.$refs.earningsChart, {
+        type: "bar",
+        data: {
+          labels: Object.keys(earnings),
+          datasets: [
+            {
+              label: this.selectedMenu === "Daily sales" ? "Daily earnings €" : "Monthly earnings €",
+              data: Object.values(earnings),
+              backgroundColor: "#6f0000",
             },
           ],
         },
@@ -239,6 +333,7 @@ export default {
       const employeeImg = this.$refs.employeesChart?.toDataURL("image/png");
       const hoursImg = this.$refs.hoursChart?.toDataURL("image/png");
       const treatmentsImg = this.$refs.treatmentsChart?.toDataURL("image/png");
+      const earningsImg = this.$refs.earningsChart?.toDataURL("image/png");
 
       const printWindow = window.open("", "_blank", "width=1000,height=900");
       if (!printWindow) return;
@@ -275,11 +370,23 @@ export default {
               <img src="${treatmentsImg}" />
               <div class="data-column">${this.createDataColumn(this.chartData.treatments)}</div>
             </div>
+            <div class="section">
+              <img src="${earningsImg}" />
+              <div class="data-column">${this.createDataColumn(this.chartData.earnings)}</div>
+            </div>
           </body>
         </html>
       `);
       printWindow.document.close();
     },
+  },
+  mounted() {
+    this.loadSalesData();
+    this.refreshTimer = window.setInterval(this.loadSalesData, 5000);
+  },
+  beforeUnmount() {
+    if (this.refreshTimer) window.clearInterval(this.refreshTimer);
+    Object.values(this.charts).forEach((chart) => chart?.destroy());
   },
 };
 </script>
@@ -327,18 +434,21 @@ export default {
 }
 .charts-wrapper {
   display: flex;
-  justify-content: space-around;
+  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 20px;
+  height: 100%;
+  overflow-y: auto;
 }
 .chart-container {
-  width: 30%;
+  width: calc(50% - 10px);
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 .chart-container canvas {
   width: 100% !important;
-  height: 220px !important;
+  height: 190px !important;
 }
 .title-btn {
   width: 100%;

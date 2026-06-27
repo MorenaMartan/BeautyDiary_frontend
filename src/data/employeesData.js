@@ -1,8 +1,23 @@
+export const specialties = ["Haircut", "Facial", "Massage"];
+
+const defaultSchedule = {
+  Monday: { start: "09:00", end: "17:00" },
+  Tuesday: { start: "09:00", end: "17:00" },
+  Wednesday: { start: "09:00", end: "17:00" },
+  Thursday: { start: "09:00", end: "17:00" },
+  Friday: { start: "09:00", end: "17:00" },
+  Saturday: { start: "-", end: "-" },
+  Sunday: { start: "-", end: "-" },
+};
+
 export const employeesData = [
   {
     name: "Tara",
     surname: "",
+    username: "Tara",
+    password: "tara",
     role: "Admin",
+    specialties: ["Massage", "Facial"],
     schedule: {
       Monday: { start: "07:00", end: "17:00" },
       Tuesday: { start: "08:00", end: "16:00" },
@@ -12,14 +27,19 @@ export const employeesData = [
       Saturday: { start: "-", end: "-" },
       Sunday: { start: "-", end: "-" },
     },
-    reviews: [],
-    productOrders: [{ text: "", checked: false }],
+    reviews: [
+      { client: "Margarita Marić", rating: 5, comment: "Odličan tretman." },
+    ],
+    productOrders: [{ text: "Ručnici", checked: false }],
     vacations: [],
   },
   {
     name: "Luna",
     surname: "",
+    username: "Luna",
+    password: "luna",
     role: "Beautician",
+    specialties: ["Facial"],
     schedule: {
       Monday: { start: "10:00", end: "18:00" },
       Tuesday: { start: "10:00", end: "18:00" },
@@ -36,18 +56,33 @@ export const employeesData = [
   {
     name: "Ana",
     surname: "",
+    username: "Ana",
+    password: "ana",
     role: "Beautician",
-    schedule: {
-      Monday: { start: "09:00", end: "17:00" },
-      Tuesday: { start: "09:00", end: "17:00" },
-      Wednesday: { start: "09:00", end: "17:00" },
-      Thursday: { start: "09:00", end: "17:00" },
-      Friday: { start: "09:00", end: "17:00" },
-      Saturday: { start: "-", end: "-" },
-      Sunday: { start: "-", end: "-" },
-    },
+    specialties: ["Haircut"],
+    schedule: defaultSchedule,
     reviews: [],
     productOrders: [{ text: "", checked: false }],
     vacations: [],
   },
 ];
+
+export function createEmployee(name) {
+  const schedule = {};
+  Object.keys(defaultSchedule).forEach((day) => {
+    schedule[day] = { start: "-", end: "-" };
+  });
+
+  return {
+    name,
+    surname: "",
+    username: name,
+    password: name.toLowerCase(),
+    role: "Beautician",
+    specialties: [],
+    schedule,
+    reviews: [],
+    productOrders: [{ text: "", checked: false }],
+    vacations: [],
+  };
+}

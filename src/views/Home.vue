@@ -14,9 +14,6 @@
         <router-link to="/signin">
           <button class="btn outline">Sign in</button>
         </router-link>
-        <router-link to="/dashboard">
-          <button class="btn outline">Dashboard</button>
-        </router-link>
       </div>
     </div>
   </div>

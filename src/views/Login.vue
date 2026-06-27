@@ -3,10 +3,17 @@
     <div class="login-box">
       <h1 class="title">Login</h1>
 
-      <form class="form">
-        <input type="email" placeholder="Email" class="input" />
+      <form class="form" @submit.prevent="handleLogin">
+        <input v-model="username" type="text" placeholder="Username" class="input" />
 
-        <input type="password" placeholder="Password" class="input" />
+        <input
+          v-model="password"
+          type="password"
+          placeholder="Password"
+          class="input"
+        />
+
+        <div v-if="error" class="text-danger small">{{ error }}</div>
 
         <button class="btn">Log in</button>
       </form>
@@ -14,11 +21,37 @@
         Don't have an account?
         <router-link to="/signin">Sign in</router-link>
       </p>
+      <div class="small text-muted mt-2">
+        Admin: Tara/tara, Beautician: Luna/luna, Client: Petra/petra
+      </div>
     </div>
   </div>
 </template>
 
-<script setup></script>
+<script>
+import { login } from "@/data/auth";
+
+export default {
+  data() {
+    return {
+      username: "",
+      password: "",
+      error: "",
+    };
+  },
+  methods: {
+    handleLogin() {
+      const user = login(this.username, this.password);
+      if (!user) {
+        this.error = "Wrong username or password.";
+        return;
+      }
+
+      this.$router.push("/dashboard");
+    },
+  },
+};
+</script>
 
 <style>
 .login {
@@ -43,7 +76,7 @@
   background: rgba(255, 255, 255, 0.9);
   padding: 40px;
   border-radius: 12px;
-  width: 300px;
+  width: 320px;
   text-align: center;
 }
 

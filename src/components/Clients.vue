@@ -29,7 +29,7 @@
           <b>Client details</b>
           <button
             class="btn btn-sm btn-outline-danger"
-            @click="editMode = !editMode"
+            @click="toggleEdit"
           >
             {{ editMode ? "Save" : "Edit" }}
           </button>
@@ -88,16 +88,17 @@
 
         <hr />
 
-        <div><b>Termins:</b> {{ selectedClient.termins }}</div>
+        <div><b>Termins:</b> {{ doneTreatments }}</div>
         <div><b>Cancelled:</b> {{ selectedClient.cancelled }}</div>
         <div><b>Wallet:</b> {{ selectedClient.wallet }} €</div>
+        <div><b>Spent Beauty points:</b> {{ selectedClient.spentBeautyPoints || 0 }}</div>
 
         <hr />
 
         <div>
-          <b>Stars:</b> {{ stars }} ⭐
-          <div v-if="stars >= 15" class="text-success">
-            15% discount available
+          <b>Beauty points:</b> {{ beautyPoints }} ⭐
+          <div v-if="beautyPoints >= 10" class="text-success">
+            10% discount available
           </div>
         </div>
       </div>
@@ -146,6 +147,8 @@
 
 <script>
 import { clients } from "@/data/clientsData";
+import { appointments } from "@/data/appointments";
+import { api } from "@/services/api";
 
 export default {
   name: "Clients",
@@ -167,9 +170,18 @@ export default {
         )
         .sort((a, b) => a.name.localeCompare(b.name));
     },
-    stars() {
+    doneTreatments() {
       if (!this.selectedClient) return 0;
-      return Math.floor(this.selectedClient.wallet / 15);
+      return appointments.filter(
+        (a) =>
+          a.client_name === this.selectedClient.name &&
+          a.client_surname === this.selectedClient.surname &&
+          a.status !== "cancelled",
+      ).length;
+    },
+    beautyPoints() {
+      if (!this.selectedClient) return 0;
+      return Math.floor(this.selectedClient.wallet / 20) - (this.selectedClient.spentBeautyPoints || 0);
     },
   },
   methods: {
@@ -178,23 +190,34 @@ export default {
       this.editMode = false;
       this.activeLevel3 = "diary";
     },
-    addClient() {
-      const newClient = {
-        id: Date.now(),
-        name: "New",
-        surname: "Client",
-        email: "",
-        mobile: "",
-        birthday: "",
-        termins: 0,
-        cancelled: 0,
-        wallet: 0,
-        diary: [{ date: "", text: "", expanded: false }],
-      };
-      this.clientsList.push(newClient);
+    async addClient() {
+      try {
+        const newClient = await api.createClient({
+          name: "New",
+          surname: "Client",
+          username: `client${Date.now()}`,
+        });
+        this.clientsList.push(newClient);
 
-      this.selectedClient = newClient;
-      this.editMode = true;
+        this.selectedClient = newClient;
+        this.editMode = true;
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    async toggleEdit() {
+      if (!this.editMode) {
+        this.editMode = true;
+        return;
+      }
+
+      try {
+        const savedClient = await api.updateClient(this.selectedClient.id, this.selectedClient);
+        Object.assign(this.selectedClient, savedClient);
+        this.editMode = false;
+      } catch (error) {
+        alert(error.message);
+      }
     },
     handleDiary(index) {
       const diary = this.selectedClient.diary;
@@ -208,6 +231,14 @@ export default {
     toggleLevel3(name) {
       this.activeLevel3 = this.activeLevel3 === name ? null : name;
     },
+  },
+  async mounted() {
+    try {
+      this.clientsList = await api.getClients();
+    } catch (error) {
+      console.error(error);
+      this.clientsList = clients;
+    }
   },
 };
 </script>

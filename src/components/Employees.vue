@@ -16,14 +16,14 @@
       </ul>
 
       <div
-        v-if="!showAddForm"
+        v-if="currentUser.role === 'Admin' && !showAddForm"
         class="btn btn-sm btn-danger mt-3 text-white"
         @click="showAddForm = true"
       >
         + Add Employee
       </div>
 
-      <div v-else class="mt-3">
+      <div v-else-if="currentUser.role === 'Admin'" class="mt-3">
         <input
           v-model="newEmployeeName"
           placeholder="Enter name"
@@ -82,6 +82,7 @@
               type="text"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.name"
+              @blur="persistSelectedEmployee"
             />
           </div>
 
@@ -91,6 +92,7 @@
               type="text"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.surname"
+              @blur="persistSelectedEmployee"
             />
           </div>
 
@@ -100,6 +102,7 @@
               type="date"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.birthday"
+              @blur="persistSelectedEmployee"
             />
           </div>
 
@@ -109,6 +112,7 @@
               type="text"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.mobile"
+              @blur="persistSelectedEmployee"
             />
           </div>
 
@@ -118,6 +122,7 @@
               type="email"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.email"
+              @blur="persistSelectedEmployee"
             />
           </div>
         </div>
@@ -126,6 +131,7 @@
           <select
             class="form-select form-select-sm text-danger"
             v-model="selectedEmployee.role"
+            @change="persistSelectedEmployee"
           >
             <option value="Admin">Admin</option>
             <option value="Beautician">Beautician</option>
@@ -136,7 +142,7 @@
           <div class="d-flex gap-2">
             <select
               class="form-select form-select-sm text-danger"
-              v-model="selectedEmployee.specialty"
+              v-model="selectedSpecialty"
             >
               <option v-for="s in specialties" :key="s" :value="s">
                 {{ s }}
@@ -144,12 +150,38 @@
             </select>
 
             <button
-              v-if="selectedEmployee.role === 'Admin'"
+              v-if="currentUser.role === 'Admin'"
               class="btn btn-sm btn-danger text-white"
-              @click="addSpecialty"
+              @click="assignSpecialty"
             >
+              Add
+            </button>
+          </div>
+          <div class="d-flex flex-wrap gap-1 mt-2">
+            <span
+              v-for="s in selectedEmployee.specialties"
+              :key="s"
+              class="badge bg-danger text-white"
+            >
+              {{ s }}
+            </span>
+          </div>
+
+          <div v-if="currentUser.role === 'Admin'" class="d-flex gap-2 mt-3">
+            <input
+              v-model="newSpecialty"
+              class="form-control form-control-sm text-danger"
+              placeholder="New specialty"
+            />
+            <button class="btn btn-sm btn-danger text-white" @click="addSpecialty">
               +Add
             </button>
+          </div>
+          <div v-if="currentUser.role === 'Admin'" class="d-flex flex-wrap gap-1 mt-2">
+            <span v-for="s in specialties" :key="s" class="badge specialty-badge">
+              {{ s }}
+              <button class="specialty-delete" @click="deleteSpecialty(s)">×</button>
+            </span>
           </div>
         </div>
 
@@ -194,6 +226,7 @@
             <select
               class="form-select form-select-sm text-danger"
               v-model="selectedEmployee.schedule[day.name].start"
+              @change="persistSelectedEmployee"
             >
               <option value="-">-</option>
               <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
@@ -202,6 +235,7 @@
             <select
               class="form-select form-select-sm text-danger"
               v-model="selectedEmployee.schedule[day.name].end"
+              @change="persistSelectedEmployee"
             >
               <option value="-">-</option>
               <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
@@ -218,12 +252,21 @@
             <li
               v-for="r in selectedEmployee.reviews"
               :key="r.comment"
-              class="list-group-item d-flex justify-content-between text-danger"
+              class="list-group-item text-danger"
             >
-              <span>{{ r.comment }}</span>
-              <span>{{ r.rating }}/5</span>
+              <div class="d-flex justify-content-between">
+                <span>{{ r.client }}</span>
+                <span>{{ r.rating }}/5</span>
+              </div>
+              <div>{{ r.comment }}</div>
             </li>
           </ul>
+        </div>
+
+        <div v-else-if="activeLevel3 === 'earnings'">
+          <div v-for="(value, key) in earnings" :key="key" class="mb-2">
+            <b>{{ key }}:</b> {{ value }} €
+          </div>
         </div>
 
         <div v-else-if="activeLevel3 === 'vacation'">
@@ -314,18 +357,30 @@
 </template>
 
 <script>
-import { employeesData } from "@/data/employeesData.js";
+import { employeesData, specialties, createEmployee } from "@/data/employeesData.js";
+import { appointments } from "@/data/appointments";
+import { findTreatment } from "@/data/treatmentsData";
+import { getCurrentUser } from "@/data/auth";
+import { api } from "@/services/api";
 
 export default {
   name: "Employees",
+  props: {
+    currentUser: {
+      type: Object,
+      default: () => getCurrentUser(),
+    },
+  },
 
   data() {
     return {
       showAddForm: false,
       newEmployeeName: "",
+      selectedSpecialty: "Haircut",
+      newSpecialty: "",
       selectedEmployee: null,
       activeLevel3: null,
-      specialties: ["Haircut", "Facial", "Massage"],
+      specialties,
       hours: Array.from(
         { length: 15 },
         (_, i) => `${String(7 + i).padStart(2, "0")}:00`,
@@ -428,6 +483,17 @@ export default {
       if (!this.selectedEmployee) return 0;
       return this.selectedEmployee.vacations.length;
     },
+    earnings() {
+      if (!this.selectedEmployee) return {};
+      return appointments
+        .filter((a) => a.beautician === this.selectedEmployee.name)
+        .reduce((sum, a) => {
+          const month = a.dayandhour.slice(0, 7);
+          const price = a.price || findTreatment(a.treatment)?.price || 0;
+          sum[month] = (sum[month] || 0) + price;
+          return sum;
+        }, {});
+    },
     calendarWeeks() {
       const days = this.daysInMonth;
       const firstDay = new Date(
@@ -462,30 +528,64 @@ export default {
     toggleLevel3(name) {
       this.activeLevel3 = this.activeLevel3 === name ? null : name;
     },
-    addEmployee() {
+    async addEmployee() {
       if (!this.newEmployeeName.trim()) return;
-      const newEmp = {
-        name: this.newEmployeeName.trim(),
-        surname: "",
-        role: "Beautician",
-        specialty: "",
-        schedule: {},
-        reviews: [],
-        productOrders: [{ text: "", checked: false }],
-        vacations: [],
-      };
-      this.scheduleDays.forEach(
-        (d) => (newEmp.schedule[d.name] = { start: "-", end: "-" }),
-      );
-      this.employees.push(newEmp);
+      if (this.currentUser.role !== "Admin") return;
+      const newEmp = createEmployee(this.newEmployeeName.trim());
+
+      try {
+        const savedEmployee = await api.createEmployee({ name: newEmp.name }, this.currentUser.role);
+        this.employees.push(savedEmployee);
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+
       this.newEmployeeName = "";
       this.showAddForm = false;
     },
-    addSpecialty() {
-      const newSpec = prompt("Enter new specialty:");
+    async assignSpecialty() {
+      if (!this.selectedEmployee.specialties) this.selectedEmployee.specialties = [];
+      if (!this.selectedEmployee.specialties.includes(this.selectedSpecialty)) {
+        this.selectedEmployee.specialties.push(this.selectedSpecialty);
+      }
+      await this.persistSelectedEmployee();
+    },
+    async addSpecialty() {
+      if (this.currentUser.role !== "Admin") return;
+      const newSpec = this.newSpecialty.trim();
       if (newSpec && !this.specialties.includes(newSpec)) {
-        this.specialties.push(newSpec);
-        this.selectedEmployee.specialty = newSpec;
+        try {
+          this.specialties = await api.createSpecialty(newSpec, this.currentUser.role);
+          this.selectedSpecialty = newSpec;
+          this.newSpecialty = "";
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+    },
+    async deleteSpecialty(specialty) {
+      if (this.currentUser.role !== "Admin") return;
+      try {
+        this.specialties = await api.deleteSpecialty(specialty, this.currentUser.role);
+        this.employees.forEach((emp) => {
+          emp.specialties = emp.specialties?.filter((s) => s !== specialty) || [];
+        });
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    async persistSelectedEmployee() {
+      if (this.currentUser.role !== "Admin") return;
+      if (!this.selectedEmployee?.id) {
+        alert("Employee is not loaded from database. Restart backend and refresh the page.");
+        return;
+      }
+      try {
+        const savedEmployee = await api.updateEmployee(this.selectedEmployee.id, this.selectedEmployee, this.currentUser.role);
+        Object.assign(this.selectedEmployee, savedEmployee);
+      } catch (error) {
+        alert(error.message);
       }
     },
     handleInput(emp, index) {
@@ -518,8 +618,19 @@ export default {
     },
   },
 
-  mounted() {
-    this.employees = employeesData;
+  async mounted() {
+    try {
+      const [employees, savedSpecialties] = await Promise.all([
+        api.getEmployees(),
+        api.getSpecialties(),
+      ]);
+      this.employees = employees;
+      this.specialties = savedSpecialties;
+      this.selectedSpecialty = savedSpecialties[0] || "";
+    } catch (error) {
+      console.error(error);
+      this.employees = employeesData;
+    }
 
     this.employees.forEach((emp) => {
       if (!emp.schedule) emp.schedule = {};
@@ -535,6 +646,7 @@ export default {
       }
 
       if (!emp.reviews) emp.reviews = [];
+      if (!emp.specialties) emp.specialties = [];
       if (!emp.vacations) emp.vacations = [];
     });
   },
@@ -554,6 +666,18 @@ export default {
   height: 18px;
   accent-color: #8b0000;
   cursor: pointer;
+}
+.specialty-badge {
+  background: #8b0000;
+  color: white;
+  font-size: 12px;
+}
+.specialty-delete {
+  background: transparent;
+  border: 0;
+  color: white;
+  padding: 0 0 0 5px;
+  line-height: 1;
 }
 .card {
   border-radius: 12px;

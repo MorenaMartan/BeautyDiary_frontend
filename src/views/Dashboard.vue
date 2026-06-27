@@ -1,6 +1,6 @@
 <template>
   <div
-    class="container-fluid vh-100"
+    class="container-fluid vh-100 dashboard-root"
     :style="{
       backgroundImage: `url(${background})`,
       backgroundSize: 'cover',
@@ -13,39 +13,17 @@
 
         <nav class="nav flex-column">
           <a
+            v-for="item in menuItems"
+            :key="item.name"
             class="nav-link"
-            :class="{ active: activeComponent === 'Calendar' }"
-            @click="activeComponent = 'Calendar'"
-            >Calendar</a
-          >
-          <a
-            class="nav-link"
-            :class="{ active: activeComponent === 'Employees' }"
-            @click="activeComponent = 'Employees'"
-            >Employees</a
-          >
-          <a
-            class="nav-link"
-            :class="{ active: activeComponent === 'Clients' }"
-            @click="activeComponent = 'Clients'"
-            >Clients</a
-          >
-          <a
-            class="nav-link"
-            :class="{ active: activeComponent === 'Sales' }"
-            @click="activeComponent = 'Sales'"
-            >Sales</a
-          >
-          <a
-            class="nav-link"
-            :class="{ active: activeComponent === 'Settings' }"
-            @click="activeComponent = 'Settings'"
-            >Settings</a
+            :class="{ active: activeComponent === item.name }"
+            @click="activeComponent = item.name"
+            >{{ item.label }}</a
           >
         </nav>
       </aside>
 
-      <main class="col p-4">
+      <main class="col p-4 dashboard-main">
         <div
           class="user-panel d-flex align-items-center justify-content-between mb-3"
         >
@@ -56,22 +34,68 @@
           <div class="d-flex align-items-center gap-2">
             <button class="btn-no-border menu-btn" @click="openMenu">☰</button>
             <button class="btn-no-border user-btn" @click="openProfile">
-              Tara (Admin)
+              {{ currentUser.name }} ({{ currentUser.role }})
             </button>
-            <button class="btn-no-border logout-btn" @click="logout">
+            <button class="btn-no-border logout-btn" @click="handleLogout">
               Log out
             </button>
           </div>
         </div>
 
-        <component :is="components[activeComponent]" />
+        <component
+          :is="activeView"
+          :current-user="currentUser"
+          :mode="activeComponent === 'New treatment' ? 'new' : 'list'"
+        />
       </main>
+    </div>
+
+    <div v-if="showProfileModal" class="profile-backdrop">
+      <div class="card profile-card p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <b>Edit profile</b>
+          <button class="btn btn-sm btn-outline-danger" @click="showProfileModal = false">
+            x
+          </button>
+        </div>
+
+        <label class="form-label fw-bold mb-1">Name</label>
+        <input v-model="profileForm.name" class="form-control form-control-sm mb-2" />
+
+        <label class="form-label fw-bold mb-1">Surname</label>
+        <input v-model="profileForm.surname" class="form-control form-control-sm mb-2" />
+
+        <label class="form-label fw-bold mb-1">Email</label>
+        <input v-model="profileForm.email" type="email" class="form-control form-control-sm mb-2" />
+
+        <label class="form-label fw-bold mb-1">Mobile</label>
+        <input v-model="profileForm.mobile" class="form-control form-control-sm mb-2" />
+
+        <template v-if="currentUser.role === 'Client'">
+          <label class="form-label fw-bold mb-1">Password</label>
+          <input
+            v-model="profileForm.password"
+            type="password"
+            class="form-control form-control-sm mb-2"
+          />
+
+          <label class="form-label fw-bold mb-1">Birthday</label>
+          <input
+            v-model="profileForm.birthday"
+            type="date"
+            class="form-control form-control-sm mb-3"
+          />
+        </template>
+
+        <button class="btn btn-danger text-white" @click="saveProfile">
+          Save
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import { useRouter } from "vue-router";
 import background from "@/assets/background.png";
 
 import Calendar from "@/components/Calendar.vue";
@@ -79,12 +103,30 @@ import Employees from "@/components/Employees.vue";
 import Clients from "@/components/Clients.vue";
 import Sales from "@/components/Sales.vue";
 import Settings from "@/components/Settings.vue";
+import ClientAppointments from "@/components/ClientAppointments.vue";
+import Reviews from "@/components/Reviews.vue";
+import Earnings from "@/components/Earnings.vue";
+import ProductOrders from "@/components/ProductOrders.vue";
+import { getCurrentUser, logout } from "@/data/auth";
+import { clients } from "@/data/clientsData";
+import { employeesData } from "@/data/employeesData";
+import { api } from "@/services/api";
 
 export default {
   data() {
+    const currentUser = getCurrentUser();
     return {
       activeComponent: "Calendar",
-      router: useRouter(),
+      currentUser,
+      showProfileModal: false,
+      profileForm: {
+        name: "",
+        surname: "",
+        email: "",
+        mobile: "",
+        password: "",
+        birthday: "",
+      },
       background,
       components: {
         Calendar,
@@ -92,8 +134,44 @@ export default {
         Clients,
         Sales,
         Settings,
+        Treatments: ClientAppointments,
+        "New treatment": ClientAppointments,
+        Reviews,
+        Earnings,
+        "Product orders": ProductOrders,
       },
     };
+  },
+
+  computed: {
+    activeView() {
+      return this.components[this.activeComponent];
+    },
+    menuItems() {
+      if (this.currentUser.role === "Client") {
+        return [
+          { name: "Calendar", label: "Calendar" },
+          { name: "Treatments", label: "Treatments" },
+          { name: "New treatment", label: "New treatment" },
+        ];
+      }
+
+      const items = [
+        { name: "Calendar", label: "Calendar" },
+        { name: "Clients", label: "Clients" },
+        { name: "Reviews", label: "Reviews" },
+        { name: "Earnings", label: "Earnings" },
+        { name: "Product orders", label: "Product orders" },
+      ];
+
+      if (this.currentUser.role === "Admin") {
+        items.splice(1, 0, { name: "Employees", label: "Employees" });
+        items.push({ name: "Sales", label: "Sales" });
+        items.push({ name: "Settings", label: "Settings" });
+      }
+
+      return items;
+    },
   },
 
   methods: {
@@ -101,12 +179,96 @@ export default {
       console.log("Menu clicked");
     },
 
-    openProfile() {
-      console.log("Profile clicked");
+    async openProfile() {
+      const user = this.currentUser.role === "Client"
+        ? await this.findCurrentClient()
+        : await this.findCurrentEmployee();
+
+      if (!user) return;
+
+      this.profileForm = {
+        name: user.name || "",
+        surname: user.surname || "",
+        email: user.email || "",
+        mobile: user.mobile || "",
+        password: user.password?.startsWith("[") ? user.name.toLowerCase() : user.password || "",
+        birthday: user.birthday || "",
+      };
+      this.showProfileModal = true;
     },
 
-    logout() {
-      this.router.push("/");
+    async findCurrentClient() {
+      try {
+        const savedClients = await api.getClients();
+        return (
+          savedClients.find((c) => c.id === this.currentUser.id) ||
+          savedClients.find((c) => c.username === this.currentUser.username)
+        );
+      } catch (error) {
+        return (
+          clients.find((c) => c.id === this.currentUser.id) ||
+          clients.find((c) => c.username === this.currentUser.username)
+        );
+      }
+    },
+
+    async findCurrentEmployee() {
+      try {
+        const employees = await api.getEmployees();
+        return (
+          employees.find((e) => e.id === this.currentUser.id) ||
+          employees.find((e) => e.username === this.currentUser.username)
+        );
+      } catch (error) {
+        return employeesData.find((e) => e.username === this.currentUser.username);
+      }
+    },
+
+    async saveProfile() {
+      const data = {
+        name: this.profileForm.name,
+        surname: this.profileForm.surname,
+        email: this.profileForm.email,
+        mobile: this.profileForm.mobile,
+      };
+
+      let savedUser;
+
+      try {
+        if (this.currentUser.role === "Client") {
+          const client = await this.findCurrentClient();
+          if (!client) return;
+          savedUser = await api.updateClient(client.id, {
+            ...data,
+            password: this.profileForm.password,
+            birthday: this.profileForm.birthday,
+            username: this.profileForm.name,
+          });
+        } else {
+          const employee = await this.findCurrentEmployee();
+          if (!employee) return;
+          savedUser = await api.updateEmployeeProfile(employee.id, data);
+        }
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+
+      this.currentUser = {
+        ...this.currentUser,
+        id: savedUser.id,
+        name: savedUser.name,
+        surname: savedUser.surname,
+        username: savedUser.username,
+      };
+
+      localStorage.setItem("beautyDiaryUser", JSON.stringify(this.currentUser));
+      this.showProfileModal = false;
+    },
+
+    handleLogout() {
+      logout();
+      this.$router.push("/");
     },
   },
 };
@@ -116,6 +278,15 @@ export default {
 * {
   font-family: "Dancing Script", cursive;
   color: #8b0000;
+}
+
+.dashboard-root {
+  overflow: hidden;
+}
+
+.dashboard-main {
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 .nav-link,
@@ -216,5 +387,21 @@ table td {
 .table-responsive::-webkit-scrollbar-thumb {
   background: #8b0000;
   border-radius: 10px;
+}
+
+.profile-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.profile-card {
+  width: 360px;
+  border-radius: 12px;
+  color: #8b0000;
 }
 </style>

@@ -3,21 +3,24 @@
     <div class="login-box">
       <h1 class="title">Sign In</h1>
 
-      <form class="form">
-        <input type="text" placeholder="First name" class="input" />
+      <form class="form" @submit.prevent="signIn">
+        <input v-model="form.name" type="text" placeholder="First name" class="input" />
 
-        <input type="text" placeholder="Last name" class="input" />
+        <input v-model="form.surname" type="text" placeholder="Last name" class="input" />
 
-        <input type="email" placeholder="Email" class="input" />
+        <input v-model="form.email" type="email" placeholder="Email" class="input" />
 
-        <input type="password" placeholder="Password" class="input" />
+        <input
+          v-model="form.password"
+          type="password"
+          placeholder="Password"
+          class="input"
+        />
 
-        <input type="phone" placeholder="Phone" class="input" />
+        <input v-model="form.mobile" type="phone" placeholder="Phone" class="input" />
 
-        <select class="input">
-          <option disabled selected>Login as</option>
-          <option value="client">Client</option>
-          <option value="beautician">Beautician</option>
+        <select v-model="form.role" class="input">
+          <option value="Client">Client</option>
         </select>
 
         <button class="btn">Sign in</button>
@@ -26,7 +29,46 @@
   </div>
 </template>
 
-<script setup></script>
+<script>
+import { clients, createClient } from "@/data/clientsData";
+
+export default {
+  data() {
+    return {
+      form: {
+        name: "",
+        surname: "",
+        email: "",
+        password: "",
+        mobile: "",
+        role: "Client",
+      },
+    };
+  },
+  methods: {
+    signIn() {
+      const client = createClient({
+        ...this.form,
+        username: this.form.name,
+        password: this.form.password || this.form.name.toLowerCase(),
+      });
+      clients.push(client);
+      localStorage.setItem(
+        "beautyDiaryUser",
+        JSON.stringify({
+          id: client.id,
+          name: client.name,
+          surname: client.surname,
+          username: client.username,
+          role: "Client",
+          type: "client",
+        }),
+      );
+      this.$router.push("/dashboard");
+    },
+  },
+};
+</script>
 
 <style>
 .login {
