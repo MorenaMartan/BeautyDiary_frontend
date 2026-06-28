@@ -1,8 +1,13 @@
-const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+const ENV_API_URL = import.meta.env.VITE_API_URL?.trim();
+const API_URL = (ENV_API_URL || (import.meta.env.DEV ? "/api" : "")).replace(/\/$/, "");
 const FALLBACK_API_URL = "http://localhost:3000/api";
 const USE_LOCAL_FALLBACK = import.meta.env.DEV && API_URL !== FALLBACK_API_URL;
 
 async function request(path, options = {}) {
+  if (!API_URL) {
+    throw new Error("VITE_API_URL is missing in Vercel. Add your Railway backend URL ending with /api and redeploy.");
+  }
+
   const { headers, ...requestConfig } = options;
   const requestOptions = {
     cache: "no-store",
