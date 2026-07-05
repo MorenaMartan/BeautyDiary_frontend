@@ -5,14 +5,38 @@
       <div v-if="beautyPoints >= 10">10% discount available for next treatment.</div>
     </div>
 
-    <div class="d-flex justify-content-center align-items-center gap-3 mb-3">
-      <button @click="prevDay" class="btn btn-danger">←</button>
+    <div class="calendar-date-controls mb-3">
+      <input
+        v-model="selectedDate"
+        type="date"
+        class="form-control calendar-date-picker"
+        aria-label="Choose calendar date"
+      />
 
-      <div class="fw-bold fs-5">
-        {{ formattedDate }}
+      <div class="calendar-day-navigation">
+        <button @click="prevDay" class="btn btn-danger">←</button>
+
+        <div class="fw-bold fs-5 calendar-current-date">
+          {{ formattedDate }}
+        </div>
+
+        <button @click="nextDay" class="btn btn-danger">→</button>
       </div>
+    </div>
 
-      <button @click="nextDay" class="btn btn-danger">→</button>
+    <div class="calendar-legend mb-3">
+      <div class="legend-item">
+        <span class="legend-dot legend-available"></span>
+        Available / beautician works
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-booked"></span>
+        Booked appointment
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot legend-unavailable"></span>
+        Not working
+      </div>
     </div>
 
     <div class="table-responsive" style="max-height: 70vh">
@@ -34,19 +58,14 @@
             <td
               v-for="employee in employees"
               :key="employee.name + time"
-              @click="
-                isAvailable(employee.name, time)
-                  ? openModal(employee.name, time)
-                  : null
-              "
+              class="calendar-cell"
+              :class="getCellClass(employee.name, time)"
+              :title="getCellTitle(employee.name, time)"
+              @click="handleCellClick(employee.name, time)"
               :style="{
-                backgroundColor: isAvailable(employee.name, time)
-                  ? '#f8f9fa'
-                  : 'rgba(255,255,255,0.7)',
-                cursor: isAvailable(employee.name, time)
+                cursor: isAvailable(employee.name, time) || canOpenAppointmentDetails(employee.name, time)
                   ? 'pointer'
                   : 'not-allowed',
-                color: '#8b0000',
               }"
             >
               {{ getCellData(employee.name, time) }}
@@ -59,12 +78,69 @@
     <div v-if="showModal" class="modal-backdrop-custom">
       <div class="card p-3 modal-card">
         <div class="d-flex justify-content-between mb-2">
-          <b>New appointment</b>
-          <button class="btn btn-sm btn-outline-danger" @click="showModal = false">
+          <b>{{ selectedAppointment ? "Appointment details" : "New appointment" }}</b>
+          <button class="btn btn-sm btn-outline-danger" @click="closeModal">
             x
           </button>
         </div>
 
+        <div v-if="selectedAppointment" class="appointment-details">
+          <div class="detail-row">
+            <span>Client</span>
+            <b>{{ selectedAppointment.client_name }} {{ selectedAppointment.client_surname }}</b>
+          </div>
+          <div class="detail-row">
+            <span>Treatment</span>
+            <b>{{ selectedAppointment.treatment }}</b>
+          </div>
+          <div class="detail-row">
+            <span>Beautician</span>
+            <b>{{ selectedAppointment.beautician }}</b>
+          </div>
+          <div class="detail-row">
+            <span>Date</span>
+            <b>{{ appointmentDate(selectedAppointment) }}</b>
+          </div>
+          <div class="detail-row">
+            <span>Time</span>
+            <b>{{ appointmentTime(selectedAppointment) }}</b>
+          </div>
+          <div class="detail-row">
+            <span>Duration</span>
+            <b>{{ appointmentDuration(selectedAppointment) }} min</b>
+          </div>
+          <div class="detail-row">
+            <span>Price</span>
+            <b>{{ appointmentPrice(selectedAppointment) }}</b>
+          </div>
+          <div class="detail-row">
+            <span>Status</span>
+            <b>{{ appointmentStatusLabel(selectedAppointment) }}</b>
+          </div>
+
+          <div v-if="selectedAppointment.earningsAmount" class="detail-row">
+            <span>Earnings</span>
+            <b>{{ selectedAppointment.earningsAmount }} €</b>
+          </div>
+
+          <div v-if="canManageSelectedAppointment" class="appointment-actions">
+            <button class="btn btn-sm btn-danger text-white" @click="completeAppointment">
+              Mark as completed
+            </button>
+            <button class="btn btn-sm btn-outline-danger" @click="markNoShow">
+              Client did not come
+            </button>
+            <button class="btn btn-sm btn-outline-danger" @click="cancelSelectedAppointment">
+              Cancel appointment
+            </button>
+          </div>
+
+          <div v-else-if="currentUser.role !== 'Client'" class="status-note">
+            Appointment status has already been set.
+          </div>
+        </div>
+
+        <template v-else>
         <input
           v-if="currentUser.role === 'Client'"
           :value="`${form.client_name} ${form.client_surname}`"
@@ -105,6 +181,7 @@
         <button class="btn btn-danger text-white" @click="saveAppointment">
           Save
         </button>
+        </template>
       </div>
     </div>
   </div>
@@ -134,6 +211,7 @@ export default {
       appointmentsList: localAppointments,
       treatmentsList: localTreatments,
       showModal: false,
+      selectedAppointment: null,
       selectedEmployee: "",
       selectedTime: "",
       clientSearch: "",
@@ -199,6 +277,14 @@ export default {
       return this.clientsList.find((client) => client.id === this.selectedClientId);
     },
 
+    canManageSelectedAppointment() {
+      return (
+        this.currentUser.role !== "Client" &&
+        this.selectedAppointment &&
+        (this.selectedAppointment.status || "booked") === "booked"
+      );
+    },
+
     formattedDate() {
       const options = {
         weekday: "long",
@@ -207,6 +293,16 @@ export default {
         day: "numeric",
       };
       return this.currentDate.toLocaleDateString(undefined, options);
+    },
+
+    selectedDate: {
+      get() {
+        return this.currentDateKey;
+      },
+      set(value) {
+        if (!value) return;
+        this.currentDate = new Date(`${value}T00:00:00`);
+      },
     },
 
     employeesMap() {
@@ -286,8 +382,45 @@ export default {
       this.currentDate = new Date(this.currentDate);
     },
 
+    handleCellClick(employee, time) {
+      const appointment = this.getAppointmentAt(employee, time);
+      if (appointment && this.canViewAppointmentDetails(appointment)) {
+        this.openAppointmentDetails(appointment);
+        return;
+      }
+
+      if (this.isAvailable(employee, time)) {
+        this.openModal(employee, time);
+      }
+    },
+
+    openAppointmentDetails(appointment) {
+      this.selectedAppointment = appointment;
+      this.showModal = true;
+    },
+
+    canOpenAppointmentDetails(employee, time) {
+      const appointment = this.getAppointmentAt(employee, time);
+      return Boolean(appointment && this.canViewAppointmentDetails(appointment));
+    },
+
+    canViewAppointmentDetails(appointment) {
+      if (this.currentUser.role !== "Client") return true;
+
+      return (
+        appointment.client_name === this.currentUser.name &&
+        appointment.client_surname === this.currentUser.surname
+      );
+    },
+
+    closeModal() {
+      this.showModal = false;
+      this.selectedAppointment = null;
+    },
+
     async openModal(employee, time) {
       if (this.isBooked(employee, time)) return;
+      this.selectedAppointment = null;
       try {
         this.clientsList = await api.getClients();
       } catch (error) {
@@ -354,7 +487,7 @@ export default {
       }
 
       this.loadAppointments();
-      this.showModal = false;
+      this.closeModal();
     },
 
     findTreatment(name) {
@@ -369,15 +502,131 @@ export default {
       return `${treatment.name} - ${treatment.price} € / ${treatment.duration} min`;
     },
 
+    appointmentDate(appointment) {
+      return appointment.dayandhour.split(" ")[0];
+    },
+
+    appointmentTime(appointment) {
+      return appointment.dayandhour.split(" ")[1];
+    },
+
+    appointmentDuration(appointment) {
+      return appointment.duration || this.findTreatment(appointment.treatment)?.duration || 60;
+    },
+
+    appointmentPrice(appointment) {
+      const price = appointment.price ?? this.findTreatment(appointment.treatment)?.price;
+      return Number(price) ? `${price} €` : "-";
+    },
+
+    appointmentStatusLabel(appointment) {
+      const labels = {
+        booked: "Booked",
+        completed: "Completed",
+        cancelled: "Cancelled",
+        no_show: "Client did not come",
+      };
+
+      return labels[appointment.status || "booked"] || appointment.status;
+    },
+
+    appointmentStartDate(appointment) {
+      return new Date(appointment.dayandhour.replace(" ", "T"));
+    },
+
+    appointmentBasePrice(appointment) {
+      return Number(appointment.price ?? this.findTreatment(appointment.treatment)?.price ?? 0);
+    },
+
+    async completeAppointment() {
+      const appointment = this.selectedAppointment;
+      const price = this.appointmentBasePrice(appointment);
+      await this.updateAppointmentStatus(appointment, {
+        status: "completed",
+        earningsAmount: price,
+      });
+    },
+
+    async markNoShow() {
+      await this.updateAppointmentStatus(this.selectedAppointment, {
+        status: "no_show",
+        earningsAmount: 0,
+      });
+    },
+
+    async cancelSelectedAppointment() {
+      const appointment = this.selectedAppointment;
+      const hoursUntilAppointment =
+        (this.appointmentStartDate(appointment) - new Date()) / (60 * 60 * 1000);
+
+      if (hoursUntilAppointment > 24) {
+        await this.deleteSelectedAppointment(appointment);
+        return;
+      }
+
+      await this.updateAppointmentStatus(appointment, {
+        status: "cancelled",
+        earningsAmount: this.appointmentBasePrice(appointment) / 2,
+      });
+    },
+
+    async updateAppointmentStatus(appointment, data) {
+      let updatedAppointment = { ...appointment, ...data };
+
+      try {
+        if (appointment.id) {
+          updatedAppointment = await api.updateAppointment(appointment.id, data);
+        }
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+
+      const index = this.appointmentsList.findIndex((a) => this.isSameAppointment(a, appointment));
+      if (index !== -1) {
+        this.appointmentsList.splice(index, 1, updatedAppointment);
+      }
+
+      this.selectedAppointment = updatedAppointment;
+      this.loadAppointments();
+    },
+
+    async deleteSelectedAppointment(appointment) {
+      try {
+        if (appointment.id) {
+          await api.deleteAppointment(appointment.id);
+        }
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+
+      this.appointmentsList = this.appointmentsList.filter((a) => !this.isSameAppointment(a, appointment));
+      this.loadAppointments();
+      this.closeModal();
+    },
+
+    isSameAppointment(a, b) {
+      if (a.id && b.id) return a.id === b.id;
+
+      return (
+        a.client_name === b.client_name &&
+        a.client_surname === b.client_surname &&
+        a.treatment === b.treatment &&
+        a.dayandhour === b.dayandhour &&
+        a.beautician === b.beautician
+      );
+    },
+
     getCellData(employee, time) {
       const appointment = this.getAppointmentAt(employee, time);
       if (appointment) {
         if (this.currentUser.role === "Client") return "";
 
         const startTime = appointment.dayandhour.split(" ")[1];
-        if (startTime !== time) return "Booked";
+        if (startTime !== time) return this.appointmentStatusLabel(appointment);
 
-        return `${appointment.treatment} - ${appointment.client_name} ${appointment.client_surname}`;
+        return `${this.appointmentStatusLabel(appointment)}: ${appointment.treatment} - ${appointment.client_name} ${appointment.client_surname}`;
       }
 
       return "";
@@ -391,11 +640,25 @@ export default {
       return this.isWithinWorkHours(employee, time) && !this.isBooked(employee, time);
     },
 
+    getCellClass(employee, time) {
+      const appointment = this.getAppointmentAt(employee, time);
+      if (appointment) return `cell-${appointment.status || "booked"}`;
+      if (this.isWithinWorkHours(employee, time)) return "cell-available";
+      return "cell-unavailable";
+    },
+
+    getCellTitle(employee, time) {
+      const appointment = this.getAppointmentAt(employee, time);
+      if (appointment) return this.appointmentStatusLabel(appointment);
+      if (this.isWithinWorkHours(employee, time)) return "Available appointment";
+      return "Beautician is not working";
+    },
+
     getAppointmentAt(employee, time) {
       const targetMinutes = this.toMinutes(time);
 
       return this.appointmentsList.find((a) => {
-        if (a.status === "cancelled") return false;
+        if (a.status === "cancelled" && !Number(a.earningsAmount)) return false;
         if (a.beautician !== employee) return false;
 
         const [date, startTime] = a.dayandhour.split(" ");
@@ -451,6 +714,58 @@ export default {
   color: white;
 }
 
+.calendar-date-controls {
+  position: relative;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-day-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.calendar-current-date {
+  min-width: 280px;
+  text-align: center;
+}
+
+.calendar-date-picker {
+  position: absolute;
+  left: 0;
+  width: 170px;
+  min-width: 170px;
+  color: #8b0000 !important;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .calendar-date-controls {
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 12px;
+    flex-direction: column;
+  }
+
+  .calendar-date-picker {
+    position: static;
+  }
+
+  .calendar-day-navigation {
+    width: 100%;
+  }
+
+  .calendar-current-date {
+    min-width: 0;
+  }
+}
+
 table {
   table-layout: fixed;
   width: 100%;
@@ -465,6 +780,125 @@ thead th {
 table td {
   background: rgba(255, 255, 255, 0.7);
   color: #8b0000;
+}
+
+.calendar-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: #351515;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(139, 0, 0, 0.12);
+  border-radius: 999px;
+}
+
+.legend-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend-available {
+  background: #d9f4df;
+  border: 1px solid #5fbf73;
+}
+
+.legend-booked {
+  background: #ffd9d9;
+  border: 1px solid #d94c4c;
+}
+
+.legend-unavailable {
+  background: #ece4e1;
+  border: 1px solid #b6aaa6;
+}
+
+.calendar-cell {
+  position: relative;
+  border-width: 1px !important;
+  font-weight: 700;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.calendar-cell.cell-available {
+  background: linear-gradient(135deg, #effcf2, #d8f4df) !important;
+  border-color: rgba(68, 155, 87, 0.38) !important;
+  color: #1f6b31 !important;
+}
+
+.calendar-cell.cell-booked {
+  background: linear-gradient(135deg, #fff0f0, #ffd9d9) !important;
+  border-color: rgba(185, 41, 41, 0.38) !important;
+  color: #8b0000 !important;
+}
+
+.calendar-cell.cell-completed {
+  background: linear-gradient(135deg, #eef7ff, #d7ecff) !important;
+  border-color: rgba(45, 111, 171, 0.36) !important;
+  color: #174f83 !important;
+}
+
+.calendar-cell.cell-cancelled {
+  background: linear-gradient(135deg, #fff7e8, #ffe2ad) !important;
+  border-color: rgba(194, 120, 24, 0.38) !important;
+  color: #8a4f00 !important;
+}
+
+.calendar-cell.cell-no_show {
+  background: linear-gradient(135deg, #f5efff, #e7d7ff) !important;
+  border-color: rgba(111, 70, 175, 0.34) !important;
+  color: #4f2b89 !important;
+}
+
+.calendar-cell.cell-unavailable {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(236, 228, 225, 0.9),
+    rgba(236, 228, 225, 0.9) 8px,
+    rgba(226, 215, 211, 0.9) 8px,
+    rgba(226, 215, 211, 0.9) 16px
+  ) !important;
+  border-color: rgba(120, 100, 96, 0.18) !important;
+  color: rgba(80, 61, 57, 0.45) !important;
+}
+
+.calendar-cell.cell-available:hover,
+.calendar-cell.cell-booked:hover,
+.calendar-cell.cell-completed:hover,
+.calendar-cell.cell-cancelled:hover,
+.calendar-cell.cell-no_show:hover {
+  box-shadow: inset 0 0 0 2px rgba(139, 0, 0, 0.18);
+  transform: scale(1.01);
+}
+
+.appointment-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.status-note {
+  margin-top: 6px;
+  padding: 9px 11px;
+  background: rgba(139, 0, 0, 0.07);
+  border-radius: 12px;
+  color: #7d6565;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 table th,
@@ -488,6 +922,28 @@ table td {
 }
 .modal-card {
   width: 340px;
+}
+
+.appointment-details {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #f1dada;
+  padding-bottom: 7px;
+}
+
+.detail-row span {
+  color: #777;
+}
+
+.detail-row b {
+  color: #8b0000;
+  text-align: right;
 }
 
 .client-select {

@@ -68,7 +68,7 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 .login {
   height: 100vh;
   background-image: url("@/assets/background.png");
@@ -77,28 +77,35 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    Arial,
-    sans-serif !important;
+  font-family: var(--bd-font);
+  position: relative;
+}
+
+.login::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(255, 248, 246, 0.72), rgba(255, 255, 255, 0.28));
 }
 
 .login-box {
-  background: rgba(255, 255, 255, 0.9);
-  padding: 40px;
-  border-radius: 12px;
-  width: 320px;
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(139, 0, 0, 0.14);
+  box-shadow: 0 28px 70px rgba(63, 15, 15, 0.18);
+  backdrop-filter: blur(16px);
+  padding: 42px;
+  border-radius: 28px;
+  width: 360px;
   text-align: center;
 }
 
 .title {
-  font-size: 40px;
-  color: #8b0000;
+  font-size: 44px;
+  color: var(--bd-primary);
   margin-bottom: 30px;
+  font-family: var(--bd-brand-font);
 }
 
 .form {
@@ -108,23 +115,26 @@ export default {
 }
 
 .input {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(139, 0, 0, 0.16);
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .btn {
-  background: #a40000;
+  background: linear-gradient(135deg, var(--bd-primary), var(--bd-primary-dark));
   color: white;
   border: none;
-  padding: 10px;
-  font-size: 18px;
-  border-radius: 8px;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 800;
+  border-radius: 999px;
   cursor: pointer;
+  box-shadow: 0 14px 30px rgba(139, 0, 0, 0.24);
 }
 
 .btn:hover {
-  background: #7c0000;
+  filter: brightness(1.06);
 }
 </style>

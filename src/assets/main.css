@@ -1,4 +1,191 @@
+:root {
+  --bd-primary: #8b0000;
+  --bd-primary-dark: #610000;
+  --bd-primary-soft: rgba(139, 0, 0, 0.08);
+  --bd-text: #351515;
+  --bd-muted: #7d6565;
+  --bd-border: rgba(139, 0, 0, 0.16);
+  --bd-surface: rgba(255, 255, 255, 0.78);
+  --bd-surface-strong: rgba(255, 255, 255, 0.92);
+  --bd-shadow: 0 18px 45px rgba(63, 15, 15, 0.14);
+  --bd-radius: 18px;
+  --bd-font:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+  --bd-brand-font: "Brush Script MT", "Segoe Script", cursive;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  font-family: "Brush Script MT", cursive;
+  font-family: var(--bd-font);
+  color: var(--bd-text);
+  background: #fbf4f2;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: var(--bd-primary);
+}
+
+.card {
+  background: var(--bd-surface-strong) !important;
+  border: 1px solid var(--bd-border) !important;
+  border-radius: var(--bd-radius) !important;
+  box-shadow: var(--bd-shadow) !important;
+  backdrop-filter: blur(16px);
+}
+
+.btn-danger,
+.btn.btn-danger,
+.btn.text-white {
+  background: linear-gradient(135deg, var(--bd-primary), var(--bd-primary-dark)) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow: 0 10px 22px rgba(139, 0, 0, 0.22) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em;
+}
+
+.btn-danger:hover,
+.btn.btn-danger:hover,
+.btn.text-white:hover {
+  filter: brightness(1.06);
+}
+
+.btn-outline-danger {
+  color: var(--bd-primary) !important;
+  border-color: rgba(139, 0, 0, 0.35) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.66) !important;
+}
+
+.btn-outline-danger:hover {
+  color: white !important;
+  background: var(--bd-primary) !important;
+}
+
+.form-control,
+.form-select {
+  border: 1px solid var(--bd-border) !important;
+  border-radius: 12px !important;
+  color: var(--bd-text) !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: none !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: rgba(139, 0, 0, 0.48) !important;
+  box-shadow: 0 0 0 4px rgba(139, 0, 0, 0.1) !important;
+}
+
+.list-group-item {
+  border: 0 !important;
+  border-radius: 12px !important;
+  margin-bottom: 6px;
+  background: transparent !important;
+  color: var(--bd-primary) !important;
+}
+
+.list-group-item:hover,
+.list-group-item.active,
+.activeItem {
+  background: linear-gradient(135deg, var(--bd-primary), var(--bd-primary-dark)) !important;
+  color: white !important;
+}
+
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-border-color: rgba(139, 0, 0, 0.12);
+  border-collapse: separate !important;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.table thead th {
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: var(--bd-primary) !important;
+  border-bottom: 1px solid var(--bd-border) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.table td,
+.table th {
+  border-color: rgba(139, 0, 0, 0.1) !important;
+}
+
+.table td {
+  background: rgba(255, 255, 255, 0.62) !important;
+}
+
+.table-responsive,
+.scroll-card,
+.review-list,
+.treatment-list,
+.earnings-grid,
+.reviews-grid,
+.main-wrapper,
+.client-list,
+.orders-card,
+.level2-card,
+.level3-card {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 0, 0, 0.45) rgba(255, 255, 255, 0.35);
+}
+
+.table-responsive::-webkit-scrollbar,
+.scroll-card::-webkit-scrollbar,
+.review-list::-webkit-scrollbar,
+.treatment-list::-webkit-scrollbar,
+.earnings-grid::-webkit-scrollbar,
+.reviews-grid::-webkit-scrollbar,
+.main-wrapper::-webkit-scrollbar,
+.client-list::-webkit-scrollbar,
+.orders-card::-webkit-scrollbar,
+.level2-card::-webkit-scrollbar,
+.level3-card::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb,
+.scroll-card::-webkit-scrollbar-thumb,
+.review-list::-webkit-scrollbar-thumb,
+.treatment-list::-webkit-scrollbar-thumb,
+.earnings-grid::-webkit-scrollbar-thumb,
+.reviews-grid::-webkit-scrollbar-thumb,
+.main-wrapper::-webkit-scrollbar-thumb,
+.client-list::-webkit-scrollbar-thumb,
+.orders-card::-webkit-scrollbar-thumb,
+.level2-card::-webkit-scrollbar-thumb,
+.level3-card::-webkit-scrollbar-thumb {
+  background: rgba(139, 0, 0, 0.45);
+  border-radius: 999px;
 }

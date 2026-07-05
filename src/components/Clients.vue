@@ -254,9 +254,6 @@ export default {
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  background-image: url("/path/to/background.jpg");
-  background-size: cover;
-  background-position: center;
 }
 
 .card {

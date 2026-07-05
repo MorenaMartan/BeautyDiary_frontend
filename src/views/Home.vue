@@ -21,7 +21,7 @@
 
 <script setup></script>
 
-<style>
+<style scoped>
 .home {
   height: 100vh;
   width: 100%;
@@ -31,20 +31,40 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+  overflow: hidden;
+  font-family: var(--bd-font);
+}
+
+.home::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, rgba(255, 250, 248, 0.72), rgba(255, 255, 255, 0.2)),
+    radial-gradient(circle at 50% 30%, rgba(139, 0, 0, 0.12), transparent 32%);
 }
 
 .overlay {
+  position: relative;
+  z-index: 1;
   text-align: center;
-  backdrop-filter: blur(3px);
-  padding: 40px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(139, 0, 0, 0.14);
+  border-radius: 34px;
+  box-shadow: 0 28px 70px rgba(63, 15, 15, 0.18);
+  backdrop-filter: blur(16px);
+  padding: 54px 64px;
 }
 
 .title {
-  font-size: 72px;
-  color: #8b0000;
-  margin-bottom: 50px;
-  font-family: "Brush Script MT", cursive;
+  font-size: clamp(56px, 8vw, 92px);
+  color: var(--bd-primary);
+  margin-bottom: 38px;
+  font-family: var(--bd-brand-font);
   letter-spacing: 2px;
+  line-height: 0.95;
+  text-shadow: 0 10px 26px rgba(139, 0, 0, 0.12);
 }
 
 .buttons {
@@ -55,21 +75,22 @@
 
 .btn,
 .btn.outline {
-  background-color: #8b0000 !important;
+  background: linear-gradient(135deg, var(--bd-primary), var(--bd-primary-dark)) !important;
   color: white !important;
   border: none !important;
-  padding: 8px 30px;
+  padding: 12px 34px;
   font-size: 14px;
   border-radius: 30px;
   cursor: pointer;
-  font-family: "Segoe UI", sans-serif;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
-  transition: none;
+  font-family: var(--bd-font);
+  font-weight: 800;
+  box-shadow: 0 14px 30px rgba(139, 0, 0, 0.24);
+  transition: all 0.18s ease;
 }
 
 .btn:hover {
-  background: #7c0000;
-  transform: translateY(-3px);
+  filter: brightness(1.06);
+  transform: translateY(-2px);
 }
 
 .btn.outline {
@@ -88,10 +109,9 @@
 .btn.outline:hover,
 .btn.outline:focus,
 .btn.outline:active {
-  background-color: #8b0000 !important;
+  background-color: var(--bd-primary) !important;
   color: white !important;
-  transform: none !important;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2) !important;
+  box-shadow: 0 14px 30px rgba(139, 0, 0, 0.24) !important;
   border: none !important;
 }
 </style>

@@ -6,7 +6,7 @@
         <b>{{ totalRevenue }} €</b>
       </div>
       <div class="summary-card">
-        <span>Booked treatments</span>
+        <span>Charged treatments</span>
         <b>{{ totalAppointments }}</b>
       </div>
       <div class="summary-card month-picker">
@@ -28,7 +28,7 @@
         </div>
 
         <div class="appointments-count mb-3">
-          {{ employeeMonth(emp).count }} booked treatments
+          {{ employeeMonth(emp).count }} charged treatments
         </div>
 
         <div v-if="!employeeMonth(emp).count" class="empty-state">
@@ -85,7 +85,7 @@ export default {
       const employeeNames = this.visibleEmployees.map((emp) => emp.name);
       const months = [...new Set(
         this.appointmentsList
-          .filter((a) => a.status !== "cancelled" && employeeNames.includes(a.beautician))
+          .filter((a) => this.isEarningAppointment(a) && employeeNames.includes(a.beautician))
           .map((a) => a.dayandhour.slice(0, 7)),
       )].sort().reverse();
 
@@ -98,11 +98,11 @@ export default {
       });
 
       this.appointmentsList
-        .filter((a) => a.status !== "cancelled" && a.dayandhour?.startsWith(this.selectedMonth))
+        .filter((a) => this.isEarningAppointment(a) && a.dayandhour?.startsWith(this.selectedMonth))
         .forEach((a) => {
           if (!data[a.beautician]) return;
 
-          const price = Number(a.price || findTreatment(a.treatment)?.price || 0);
+          const price = this.appointmentEarnings(a);
           data[a.beautician].total += price;
           data[a.beautician].count += 1;
 
@@ -138,6 +138,16 @@ export default {
     },
   },
   methods: {
+    isEarningAppointment(appointment) {
+      return this.appointmentEarnings(appointment) > 0;
+    },
+    appointmentEarnings(appointment) {
+      if (appointment.earningsAmount !== undefined) return Number(appointment.earningsAmount || 0);
+      if (appointment.status === "completed") {
+        return Number(appointment.price || findTreatment(appointment.treatment)?.price || 0);
+      }
+      return 0;
+    },
     employeeMonth(emp) {
       return this.earnings[emp.name] || { total: 0, count: 0, rows: [] };
     },

@@ -289,7 +289,7 @@ export default {
       const end = start + duration;
 
       return this.appointmentsList.some((appointment) => {
-        if (appointment.status === "cancelled") return false;
+        if (appointment.status === "cancelled" && !Number(appointment.earningsAmount)) return false;
         if (appointment.beautician !== beautician) return false;
         if (!appointment.dayandhour?.startsWith(this.selectedDate)) return false;
 

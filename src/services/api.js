@@ -97,5 +97,8 @@ export const api = {
   getTreatments: () => request("/treatments"),
   getAppointments: () => request("/appointments"),
   createAppointment: (data) => request("/appointments", { method: "POST", body: JSON.stringify(data) }),
+  updateAppointment: (id, data) =>
+    request(`/appointments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   cancelAppointment: (id) => request(`/appointments/${id}/cancel`, { method: "PATCH" }),
+  deleteAppointment: (id) => request(`/appointments/${id}`, { method: "DELETE" }),
 };
