@@ -189,3 +189,70 @@ a {
   background: rgba(139, 0, 0, 0.45);
   border-radius: 999px;
 }
+
+@media (max-width: 992px) {
+  .main-wrapper {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 60vh;
+    overflow: auto !important;
+  }
+
+  .main-wrapper > .d-flex.flex-nowrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 8px;
+  }
+
+  .summary-card,
+  .review-card,
+  .earnings-card,
+  .orders-card,
+  .level1-card,
+  .level2-card,
+  .level3-card,
+  .new-treatment-card,
+  .scroll-card {
+    max-height: 72vh !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .main-wrapper {
+    min-height: auto;
+  }
+
+  .main-wrapper > .d-flex.flex-nowrap {
+    flex-direction: column !important;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .summary-card,
+  .review-card,
+  .earnings-card,
+  .orders-card,
+  .level1-card,
+  .level2-card,
+  .level3-card,
+  .new-treatment-card,
+  .scroll-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+    max-height: none !important;
+  }
+
+  .reviews-summary,
+  .earnings-top,
+  .clients-settings {
+    grid-template-columns: 1fr !important;
+  }
+
+  .reviews-grid,
+  .earnings-grid {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+}

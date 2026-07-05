@@ -8,7 +8,7 @@
     }"
   >
     <div class="dashboard-shell h-100">
-      <aside class="dashboard-sidebar">
+      <aside class="dashboard-sidebar" :class="{ 'mobile-menu-open': isMobileMenuOpen }">
         <div class="brand-block">
           <h3 class="title">Beauty Diary</h3>
           <div class="brand-subtitle">Salon management</div>
@@ -20,7 +20,7 @@
             :key="item.name"
             class="nav-link"
             :class="{ active: activeComponent === item.name }"
-            @click="activeComponent = item.name"
+            @click="selectMenuItem(item.name)"
             >{{ item.label }}</a
           >
         </nav>
@@ -38,7 +38,9 @@
           </div>
 
           <div class="d-flex align-items-center gap-2">
-            <button class="btn-no-border menu-btn" @click="openMenu">☰</button>
+            <button class="btn-no-border mobile-menu-btn" @click="isMobileMenuOpen = !isMobileMenuOpen">
+              ☰ Menu
+            </button>
             <button class="btn-no-border user-btn" @click="openProfile">
               {{ currentUser.name }} ({{ currentUser.role }})
             </button>
@@ -127,6 +129,7 @@ export default {
       activeComponent: "Calendar",
       currentUser,
       showProfileModal: false,
+      isMobileMenuOpen: false,
       profileForm: {
         name: "",
         surname: "",
@@ -183,6 +186,11 @@ export default {
   },
 
   methods: {
+    selectMenuItem(name) {
+      this.activeComponent = name;
+      this.isMobileMenuOpen = false;
+    },
+
     openMenu() {
       console.log("Menu clicked");
     },
@@ -320,6 +328,7 @@ export default {
   border-radius: 28px;
   box-shadow: 0 24px 55px rgba(63, 15, 15, 0.16);
   backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 
 .brand-block {
@@ -381,10 +390,6 @@ export default {
   box-shadow: 0 10px 22px rgba(63, 15, 15, 0.12) !important;
 }
 
-.menu-btn {
-  font-size: 20px;
-}
-
 .user-btn {
   font-size: 14px;
 }
@@ -392,6 +397,10 @@ export default {
 .logout-btn {
   font-size: 14px;
   background: rgba(139, 0, 0, 0.08) !important;
+}
+
+.mobile-menu-btn {
+  display: none;
 }
 
 .title {
@@ -495,12 +504,120 @@ table td {
 }
 
 @media (max-width: 992px) {
+  .dashboard-root {
+    padding: 12px;
+    overflow: auto;
+  }
+
   .dashboard-shell {
     grid-template-columns: 1fr;
+    min-height: 100%;
+    gap: 12px;
   }
 
   .dashboard-sidebar {
     display: none;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .dashboard-sidebar.mobile-menu-open {
+    display: block;
+  }
+
+  .brand-block {
+    margin-bottom: 12px;
+  }
+
+  .title {
+    font-size: 34px;
+  }
+
+  .brand-subtitle {
+    font-size: 10px;
+  }
+
+  .nav.flex-column {
+    gap: 6px;
+    max-height: 46vh;
+    overflow-y: auto;
+    padding-right: 2px;
+    scrollbar-width: thin;
+  }
+
+  .nav-link,
+  .nav-link:link,
+  .nav-link:visited {
+    margin-bottom: 0;
+    padding: 10px 13px;
+    font-size: 14px;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dashboard-main {
+    max-height: none;
+    min-height: 0;
+  }
+
+  .user-panel {
+    gap: 12px;
+    align-items: flex-start !important;
+    border-radius: 20px;
+  }
+
+  .active-title {
+    font-size: 24px;
+  }
+
+  .workspace-panel {
+    border-radius: 22px;
+    overflow: auto;
+  }
+}
+
+@media (max-width: 576px) {
+  .dashboard-root {
+    padding: 8px;
+  }
+
+  .dashboard-sidebar {
+    padding: 12px;
+  }
+
+  .brand-block {
+    text-align: left;
+  }
+
+  .title {
+    font-size: 30px;
+  }
+
+  .user-panel {
+    flex-direction: column;
+    padding: 14px;
+  }
+
+  .user-panel > .d-flex {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .btn-no-border {
+    flex: 1 1 auto;
+    min-width: 120px;
+  }
+
+  .active-title {
+    font-size: 22px;
+  }
+
+  .workspace-panel {
+    border-radius: 18px;
   }
 }
 </style>

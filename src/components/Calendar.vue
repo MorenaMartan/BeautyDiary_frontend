@@ -41,10 +41,14 @@
 
     <div class="table-responsive calendar-table-wrapper" style="max-height: 70vh">
       <table class="table table-bordered text-center align-middle">
-        <thead class="table-light sticky-top">
+        <thead class="table-light calendar-table-head">
           <tr>
-            <th>Time</th>
-            <th v-for="employee in employees" :key="employee.name">
+            <th class="calendar-header-cell calendar-time-header">Time</th>
+            <th
+              v-for="employee in employees"
+              :key="employee.name"
+              class="calendar-header-cell calendar-employee-header"
+            >
               {{ employee.name }}
             </th>
           </tr>
@@ -52,7 +56,7 @@
 
         <tbody>
           <tr v-for="time in times" :key="time">
-            <td class="fw-semibold" style="background-color: #f8f9fa">
+            <td class="fw-semibold calendar-time-cell">
               {{ time }}
             </td>
             <td
@@ -769,21 +773,107 @@ export default {
 table {
   table-layout: fixed;
   width: 100%;
+  min-width: 820px;
   border-radius: 16px;
+  overflow: visible !important;
 }
 
 .calendar-table-wrapper {
   position: relative;
-  overflow: auto;
+  overflow: auto !important;
+  isolation: isolate;
+  border: 1px solid rgba(139, 0, 0, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.46);
 }
 
-thead th {
-  position: sticky;
-  top: 0;
-  z-index: 5;
+.calendar-table-head {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 30 !important;
+}
+
+.calendar-header-cell {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 31 !important;
   background: white !important;
-  color: #8b0000;
-  box-shadow: 0 2px 0 rgba(139, 0, 0, 0.14);
+  color: #8b0000 !important;
+  box-shadow: 0 2px 0 rgba(139, 0, 0, 0.14), 0 8px 18px rgba(63, 15, 15, 0.08);
+  height: 46px;
+  vertical-align: middle;
+}
+
+.calendar-header-cell:first-child {
+  z-index: 32 !important;
+}
+
+.calendar-time-header,
+.calendar-time-cell {
+  position: sticky !important;
+  left: 0;
+  width: 82px;
+  min-width: 82px;
+  max-width: 82px;
+}
+
+.calendar-time-header {
+  z-index: 40 !important;
+}
+
+.calendar-time-cell {
+  z-index: 8;
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: #8b0000 !important;
+  box-shadow: 2px 0 0 rgba(139, 0, 0, 0.1);
+}
+
+.calendar-employee-header {
+  min-width: 170px;
+}
+
+@media (max-width: 720px) {
+  .calendar-table-wrapper {
+    max-height: 62vh !important;
+  }
+
+  table {
+    min-width: 680px;
+  }
+
+  .calendar-legend {
+    justify-content: flex-start;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .legend-item {
+    padding: 6px 9px;
+  }
+
+  .calendar-current-date {
+    font-size: 15px !important;
+  }
+
+  .calendar-day-navigation {
+    gap: 8px;
+  }
+
+  .calendar-date-picker {
+    width: 155px;
+    min-width: 155px;
+  }
+
+  .calendar-time-header,
+  .calendar-time-cell {
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
+  }
+
+  .calendar-employee-header {
+    min-width: 145px;
+  }
 }
 
 table td {
@@ -915,6 +1005,24 @@ table td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.calendar-cell {
+  height: 42px;
+  padding: 7px 9px !important;
+  line-height: 1.2;
+}
+
+@media (max-width: 720px) {
+  table th,
+  table td {
+    font-size: 12px;
+  }
+
+  .calendar-cell {
+    height: 38px;
+    padding: 6px 7px !important;
+  }
 }
 
 .client-info-card {
