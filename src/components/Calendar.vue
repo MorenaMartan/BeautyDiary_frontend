@@ -39,7 +39,7 @@
       </div>
     </div>
 
-    <div class="table-responsive" style="max-height: 70vh">
+    <div class="table-responsive calendar-table-wrapper" style="max-height: 70vh">
       <table class="table table-bordered text-center align-middle">
         <thead class="table-light sticky-top">
           <tr>
@@ -772,9 +772,18 @@ table {
   border-radius: 16px;
 }
 
+.calendar-table-wrapper {
+  position: relative;
+  overflow: auto;
+}
+
 thead th {
-  background: white;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: white !important;
   color: #8b0000;
+  box-shadow: 0 2px 0 rgba(139, 0, 0, 0.14);
 }
 
 table td {
