@@ -58,9 +58,11 @@
           </div>
         </div>
 
-        <button class="btn export-main-btn" @click="exportPDFPreview">
-          Export as PDF
-        </button>
+        <div class="export-actions">
+          <button class="btn export-main-btn" :disabled="isExporting" @click="exportPDF">
+            {{ isExporting ? "Generating PDF..." : "Export as PDF" }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -72,6 +74,7 @@ import { employeesData } from "@/data/employeesData";
 import { getCurrentUser } from "@/data/auth";
 import { api } from "@/services/api";
 import Chart from "chart.js/auto";
+import { jsPDF } from "jspdf";
 
 export default {
   name: "Sales",
@@ -92,6 +95,7 @@ export default {
       appointmentsList: appointments,
       employeesList: employeesData,
       refreshTimer: null,
+      isExporting: false,
       menuItems: [
         "Daily sales",
         "Monthly sales",
@@ -315,109 +319,93 @@ export default {
         options: this.getSharedChartOptions(),
       });
     },
-    createDataColumn(data) {
-      return Object.entries(data)
-        .map(
-          ([label, value]) => `
-            <div class="metric-row">
-              <span>${this.escapeHtml(label)}</span>
-              <strong>${this.formatMetric(value)}</strong>
-            </div>`,
-        )
-        .join("");
-    },
-    escapeHtml(value) {
-      return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    },
     formatMetric(value) {
       return Number(value).toLocaleString("hr-HR", { maximumFractionDigits: 2 });
     },
-    exportPDFPreview() {
-      const exportTime = new Date().toLocaleDateString("hr-HR");
-      const reportPeriod =
-        this.selectedMenu === "Daily sales"
+    async exportPDF() {
+      if (this.isExporting) return;
+
+      this.isExporting = true;
+      await this.$nextTick();
+
+      try {
+        const charts = [
+          ["Appointments by employee", this.$refs.employeesChart?.toDataURL("image/png")],
+          ["Booked hours", this.$refs.hoursChart?.toDataURL("image/png")],
+          ["Treatment distribution", this.$refs.treatmentsChart?.toDataURL("image/png")],
+          ["Earnings by employee", this.$refs.earningsChart?.toDataURL("image/png")],
+        ];
+        if (charts.some(([, image]) => !image)) throw new Error("Charts are not ready yet.");
+
+        const revenue = this.filteredAppointments.reduce(
+          (total, appointment) => total + Number(appointment.earningsAmount ?? appointment.price ?? 0),
+          0,
+        );
+        const hours = this.filteredAppointments.reduce(
+          (total, appointment) => total + Number(appointment.duration || appointment.hours || 0) / 60,
+          0,
+        );
+        const period = this.selectedMenu === "Daily sales"
           ? this.formattedSelectedDate
-          : this.selectedMenu === "Monthly sales"
-            ? this.months.find((m) => m.value === this.selectedMonth)?.label +
-              " " +
-              this.selectedMonth.split("-")[0]
-            : exportTime;
-      const employeeImg = this.$refs.employeesChart?.toDataURL("image/png");
-      const hoursImg = this.$refs.hoursChart?.toDataURL("image/png");
-      const treatmentsImg = this.$refs.treatmentsChart?.toDataURL("image/png");
-      const earningsImg = this.$refs.earningsChart?.toDataURL("image/png");
-      const totalRevenue = this.filteredAppointments.reduce(
-        (total, appointment) => total + Number(appointment.earningsAmount ?? appointment.price ?? 0),
-        0,
-      );
-      const totalHours = this.filteredAppointments.reduce(
-        (total, appointment) => total + Number(appointment.duration || 0) / 60,
-        0,
-      );
+          : `${this.months.find((month) => month.value === this.selectedMonth)?.label} ${this.selectedMonth.slice(0, 4)}`;
+        const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
-      const printWindow = window.open("", "_blank", "width=1000,height=900");
-      if (!printWindow) return;
+        pdf.setFillColor(139, 0, 0);
+        pdf.rect(0, 0, 297, 7, "F");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(25);
+        pdf.setTextColor(139, 0, 0);
+        pdf.text("Beauty Diary", 15, 22);
+        pdf.setFontSize(11);
+        pdf.setTextColor(111, 99, 99);
+        pdf.text("Salon management report", 15, 29);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(`Generated: ${new Date().toLocaleDateString("hr-HR")}`, 282, 22, { align: "right" });
+        pdf.text(`Report type: ${this.selectedMenu}`, 282, 29, { align: "right" });
+        pdf.setDrawColor(139, 0, 0);
+        pdf.line(15, 35, 282, 35);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.setTextColor(60, 48, 48);
+        pdf.text("Sales overview", 15, 46);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(11);
+        pdf.setTextColor(111, 99, 99);
+        pdf.text(`Reporting period: ${period}`, 15, 53);
 
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Beauty Diary Report</title>
-            <style>
-              * { box-sizing: border-box; }
-              body { margin: 0; background: #f6f2f2; color: #2b2525; font-family: Arial, sans-serif; }
-              .toolbar { position: sticky; top: 0; z-index: 1; padding: 14px 24px; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.12); }
-              .toolbar button { border: 0; border-radius: 6px; padding: 10px 16px; background: #8b0000; color: #fff; font-weight: bold; cursor: pointer; }
-              .page { width: 210mm; min-height: 297mm; margin: 18px auto; padding: 18mm; background: #fff; }
-              .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #8b0000; padding-bottom: 18px; }
-              .brand { font-size: 30px; font-weight: 700; color: #8b0000; }
-              .subtitle, .report-meta, .period { color: #6f6363; font-size: 13px; }
-              .subtitle { margin-top: 5px; }
-              .report-meta { text-align: right; line-height: 1.5; }
-              .report-title { margin: 24px 0 5px; font-size: 21px; color: #3c3030; }
-              .period { margin: 0 0 20px; }
-              .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 26px; }
-              .summary-card { border-left: 4px solid #8b0000; border-radius: 8px; background: #f8eeee; padding: 13px; }
-              .summary-card span { display: block; color: #786b6b; font-size: 12px; }
-              .summary-card strong { display: block; margin-top: 5px; color: #8b0000; font-size: 21px; }
-              .section { display: grid; grid-template-columns: 58% 42%; gap: 18px; margin-bottom: 20px; break-inside: avoid; border: 1px solid #eadada; border-radius: 10px; padding: 14px; }
-              .section h2 { grid-column: 1 / -1; margin: 0; color: #8b0000; font-size: 16px; }
-              .section img { width: 100%; border-radius: 6px; }
-              .metric-row { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #f0e8e8; padding: 8px 0; font-size: 13px; }
-              .metric-row:last-child { border-bottom: 0; }
-              .metric-row strong { color: #8b0000; }
-              .footer { margin-top: 24px; border-top: 1px solid #eadada; padding-top: 10px; color: #8a7e7e; font-size: 11px; text-align: center; }
-              @media print { body { background: #fff; } .toolbar { display: none; } .page { width: auto; min-height: 0; margin: 0; padding: 0; } }
-            </style>
-          </head>
-          <body>
-            <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>
-            <main class="page">
-              <header class="header">
-                <div><div class="brand">Beauty Diary</div><div class="subtitle">Salon management report</div></div>
-                <div class="report-meta">Generated: ${exportTime}<br />Report type: ${this.escapeHtml(this.selectedMenu)}</div>
-              </header>
-              <h1 class="report-title">Sales overview</h1>
-              <p class="period">Reporting period: ${this.escapeHtml(reportPeriod)}</p>
-              <section class="summary">
-                <div class="summary-card"><span>Total appointments</span><strong>${this.formatMetric(this.filteredAppointments.length)}</strong></div>
-                <div class="summary-card"><span>Booked hours</span><strong>${this.formatMetric(totalHours)}</strong></div>
-                <div class="summary-card"><span>Total revenue</span><strong>${this.formatMetric(totalRevenue)} €</strong></div>
-              </section>
-              <section class="section"><h2>Appointments by employee</h2><img src="${employeeImg}" /><div>${this.createDataColumn(this.chartData.employees)}</div></section>
-              <section class="section"><h2>Booked hours</h2><img src="${hoursImg}" /><div>${this.createDataColumn(this.chartData.hours)}</div></section>
-              <section class="section"><h2>Treatment distribution</h2><img src="${treatmentsImg}" /><div>${this.createDataColumn(this.chartData.treatments)}</div></section>
-              <section class="section"><h2>Earnings by employee</h2><img src="${earningsImg}" /><div>${this.createDataColumn(this.chartData.earnings)}</div></section>
-              <footer class="footer">Beauty Diary · Internal salon report</footer>
-            </main>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+        [["Total appointments", this.filteredAppointments.length], ["Booked hours", this.formatMetric(hours)], ["Total revenue", `${this.formatMetric(revenue)} €`]].forEach(([label, value], index) => {
+          const x = 15 + index * 90;
+          pdf.setFillColor(248, 238, 238);
+          pdf.roundedRect(x, 61, 82, 22, 2, 2, "F");
+          pdf.setFontSize(9);
+          pdf.setTextColor(120, 107, 107);
+          pdf.text(label, x + 5, 69);
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(15);
+          pdf.setTextColor(139, 0, 0);
+          pdf.text(String(value), x + 5, 78);
+          pdf.setFont("helvetica", "normal");
+        });
+
+        charts.forEach(([title, image], index) => {
+          const x = index % 2 === 0 ? 15 : 150;
+          const y = index < 2 ? 92 : 170;
+          pdf.setDrawColor(234, 218, 218);
+          pdf.roundedRect(x, y, 132, 72, 3, 3, "S");
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(11);
+          pdf.setTextColor(139, 0, 0);
+          pdf.text(title, x + 5, y + 8);
+          pdf.addImage(image, "PNG", x + 4, y + 12, 124, 55);
+        });
+        pdf.save(`beauty-diary-sales-${this.selectedMenu === "Daily sales" ? this.selectedDate : this.selectedMonth}.pdf`);
+      } catch (error) {
+        console.error("PDF export failed:", error);
+        window.alert("PDF report could not be generated. Please try again once the charts have loaded.");
+      } finally {
+        this.isExporting = false;
+      }
+
     },
   },
   mounted() {
@@ -497,11 +485,19 @@ export default {
   border: none;
 }
 .export-main-btn {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
   background: #5a0f0f;
   color: white;
   border: none;
+}
+
+.export-main-btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.export-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 </style>

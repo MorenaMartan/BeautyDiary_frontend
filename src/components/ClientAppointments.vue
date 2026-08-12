@@ -22,6 +22,12 @@
           <div>{{ a.dayandhour }} - {{ a.treatment }}</div>
           <div>{{ a.beautician }}</div>
           <button
+            class="btn btn-sm btn-outline-secondary mt-1 me-1"
+            @click="downloadAppointmentConfirmation(a)"
+          >
+            Download confirmation
+          </button>
+          <button
             class="btn btn-sm btn-outline-danger mt-1"
             :disabled="!canCancel(a)"
             @click="cancelAppointment(a)"
@@ -108,6 +114,7 @@ import { employeesData as localEmployees } from "@/data/employeesData";
 import { treatments as localTreatments } from "@/data/treatmentsData";
 import { getCurrentUser } from "@/data/auth";
 import { api } from "@/services/api";
+import { jsPDF } from "jspdf";
 
 export default {
   props: {
@@ -279,6 +286,44 @@ export default {
       } catch (error) {
         alert(error.message);
       }
+    },
+    downloadAppointmentConfirmation(appointment) {
+      const pdf = new jsPDF({ unit: "mm", format: "a4" });
+      const clientName = `${appointment.client_name} ${appointment.client_surname}`.trim();
+
+      pdf.setFillColor(139, 0, 0);
+      pdf.rect(0, 0, 210, 8, "F");
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(25);
+      pdf.setTextColor(139, 0, 0);
+      pdf.text("Beauty Diary", 20, 28);
+      pdf.setFontSize(17);
+      pdf.setTextColor(43, 37, 37);
+      pdf.text("Appointment confirmation", 20, 43);
+      pdf.setDrawColor(139, 0, 0);
+      pdf.line(20, 49, 190, 49);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(12);
+      pdf.setTextColor(43, 37, 37);
+      [
+        ["Client", clientName],
+        ["Treatment", appointment.treatment],
+        ["Date and time", appointment.dayandhour],
+        ["Beautician", appointment.beautician],
+        ["Duration", `${appointment.duration || 60} minutes`],
+        ["Price", `${Number(appointment.price || 0).toLocaleString("hr-HR")} €`],
+        ["Status", appointment.status || "booked"],
+      ].forEach(([label, value], index) => {
+        const y = 64 + index * 13;
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`${label}:`, 25, y);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(String(value), 75, y);
+      });
+      pdf.setTextColor(111, 99, 99);
+      pdf.setFontSize(10);
+      pdf.text("Please arrive on time. We look forward to seeing you.", 20, 175);
+      pdf.save(`beauty-diary-appointment-${appointment.dayandhour.slice(0, 10)}.pdf`);
     },
     async bookAppointment() {
       const appointment = {

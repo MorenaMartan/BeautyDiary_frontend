@@ -33,6 +33,9 @@
           >
             {{ editMode ? "Save" : "Edit" }}
           </button>
+          <button class="btn btn-sm btn-outline-secondary ms-2" @click="downloadTreatmentHistory">
+            Export history PDF
+          </button>
         </div>
 
         <div class="mb-1">
@@ -185,6 +188,7 @@
 import { clients } from "@/data/clientsData";
 import { appointments } from "@/data/appointments";
 import { api } from "@/services/api";
+import { jsPDF } from "jspdf";
 
 export default {
   name: "Clients",
@@ -281,6 +285,55 @@ export default {
       ) {
         diary.push({ date: "", text: "", expanded: false });
       }
+    },
+    downloadTreatmentHistory() {
+      if (!this.selectedClient) return;
+
+      const pdf = new jsPDF({ unit: "mm", format: "a4" });
+      const clientName = `${this.selectedClient.name} ${this.selectedClient.surname}`.trim();
+      const rows = this.pastAppointments.length ? this.pastAppointments : this.clientAppointments;
+
+      pdf.setFillColor(139, 0, 0);
+      pdf.rect(0, 0, 210, 8, "F");
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(24);
+      pdf.setTextColor(139, 0, 0);
+      pdf.text("Beauty Diary", 15, 24);
+      pdf.setFontSize(16);
+      pdf.setTextColor(43, 37, 37);
+      pdf.text("Client treatment history", 15, 37);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(11);
+      pdf.text(`Client: ${clientName}`, 15, 47);
+      pdf.text(`Generated: ${new Date().toLocaleDateString("hr-HR")}`, 15, 54);
+      pdf.setDrawColor(139, 0, 0);
+      pdf.line(15, 60, 195, 60);
+
+      let y = 70;
+      if (!rows.length) {
+        pdf.setTextColor(111, 99, 99);
+        pdf.text("No treatment history is available for this client.", 15, y);
+      } else {
+        rows.forEach((appointment, index) => {
+          if (y > 270) {
+            pdf.addPage();
+            y = 20;
+          }
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(11);
+          pdf.setTextColor(139, 0, 0);
+          pdf.text(`${index + 1}. ${appointment.treatment}`, 15, y);
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(43, 37, 37);
+          pdf.text(`Date: ${appointment.dayandhour}`, 20, y + 7);
+          pdf.text(`Beautician: ${appointment.beautician}`, 20, y + 14);
+          pdf.text(`Status: ${appointment.status || "booked"}`, 20, y + 21);
+          pdf.setDrawColor(234, 218, 218);
+          pdf.line(15, y + 26, 195, y + 26);
+          y += 34;
+        });
+      }
+      pdf.save(`beauty-diary-treatment-history-${this.selectedClient.name}-${this.selectedClient.surname}.pdf`);
     },
     toggleLevel3(name) {
       this.activeLevel3 = this.activeLevel3 === name ? null : name;
