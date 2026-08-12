@@ -30,7 +30,7 @@
 </template>
 
 <script>
-import { clients, createClient } from "@/data/clientsData";
+import { saveSession } from "@/data/auth";
 import { api } from "@/services/api";
 
 export default {
@@ -49,39 +49,16 @@ export default {
   methods: {
     async signIn() {
       try {
-        const { user } = await api.signup({
+        const { user, token } = await api.signup({
           ...this.form,
           username: this.form.name,
           password: this.form.password || this.form.name.toLowerCase(),
         });
-        localStorage.setItem("beautyDiaryUser", JSON.stringify(user));
+        saveSession(user, token);
         this.$router.push("/dashboard");
-        return;
       } catch (error) {
-        if (!import.meta.env.DEV) {
-          alert(error.message);
-          return;
-        }
+        alert(error.message);
       }
-
-      const client = createClient({
-        ...this.form,
-        username: this.form.name,
-        password: this.form.password || this.form.name.toLowerCase(),
-      });
-      clients.push(client);
-      localStorage.setItem(
-        "beautyDiaryUser",
-        JSON.stringify({
-          id: client.id,
-          name: client.name,
-          surname: client.surname,
-          username: client.username,
-          role: "Client",
-          type: "client",
-        }),
-      );
-      this.$router.push("/dashboard");
     },
   },
 };

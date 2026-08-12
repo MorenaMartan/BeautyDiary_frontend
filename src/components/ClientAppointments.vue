@@ -28,6 +28,9 @@
           >
             Cancel
           </button>
+          <div v-if="!canCancel(a)" class="small text-muted mt-1">
+            Appointments can be cancelled only more than 24 hours before they start.
+          </div>
         </div>
       </div>
 
@@ -152,7 +155,9 @@ export default {
       return this.clientAppointments.filter((a) => new Date(a.dayandhour) > new Date());
     },
     past() {
-      return this.clientAppointments.filter((a) => new Date(a.dayandhour) <= new Date());
+      return this.clientAppointments.filter(
+        (a) => a.status === "completed" && new Date(a.dayandhour) <= new Date(),
+      );
     },
     beautyPoints() {
       return Math.floor((this.client?.wallet || 0) / 20) - (this.client?.spentBeautyPoints || 0);
@@ -247,7 +252,7 @@ export default {
     },
     canCancel(a) {
       const diff = new Date(a.dayandhour) - new Date();
-      return diff > 48 * 60 * 60 * 1000;
+      return diff > 24 * 60 * 60 * 1000;
     },
     async cancelAppointment(a) {
       if (!this.canCancel(a)) return;
@@ -258,10 +263,22 @@ export default {
         alert(error.message);
       }
     },
-    saveReview(a) {
-      alert("Review saved.");
-      a.rating = a.rating || 0;
-      a.comment = a.comment || "";
+    async saveReview(a) {
+      if (!a.rating) {
+        alert("Please select a rating.");
+        return;
+      }
+
+      try {
+        await api.createReview(a.beautician, {
+          appointmentId: a.id,
+          rating: a.rating,
+          comment: a.comment || "",
+        });
+        alert("Review saved.");
+      } catch (error) {
+        alert(error.message);
+      }
     },
     async bookAppointment() {
       const appointment = {
@@ -290,12 +307,19 @@ export default {
 
       return this.appointmentsList.some((appointment) => {
         if (appointment.status === "cancelled" && !Number(appointment.earningsAmount)) return false;
-        if (appointment.beautician !== beautician) return false;
         if (!appointment.dayandhour?.startsWith(this.selectedDate)) return false;
 
         const appointmentStart = this.toMinutes(appointment.dayandhour.split(" ")[1]);
         const appointmentEnd = appointmentStart + Number(appointment.duration || 60);
-        return start < appointmentEnd && end > appointmentStart;
+        const overlaps = start < appointmentEnd && end > appointmentStart;
+        if (!overlaps) return false;
+
+        const sameBeautician = appointment.beautician === beautician;
+        const sameClient =
+          appointment.client_name === this.client?.name &&
+          appointment.client_surname === this.client?.surname;
+
+        return sameBeautician || sameClient;
       });
     },
     toMinutes(time) {

@@ -207,7 +207,7 @@ export default {
         surname: user.surname || "",
         email: user.email || "",
         mobile: user.mobile || "",
-        password: user.password?.startsWith("[") ? user.name.toLowerCase() : user.password || "",
+        password: "",
         birthday: user.birthday || "",
       };
       this.showProfileModal = true;
@@ -256,7 +256,7 @@ export default {
           if (!client) return;
           savedUser = await api.updateClient(client.id, {
             ...data,
-            password: this.profileForm.password,
+            ...(this.profileForm.password ? { password: this.profileForm.password } : {}),
             birthday: this.profileForm.birthday,
             username: this.profileForm.name,
           });
@@ -282,7 +282,12 @@ export default {
       this.showProfileModal = false;
     },
 
-    handleLogout() {
+    async handleLogout() {
+      try {
+        await api.logout();
+      } catch {
+        // Local credentials must still be cleared if the server is unavailable.
+      }
       logout();
       this.$router.push("/");
     },

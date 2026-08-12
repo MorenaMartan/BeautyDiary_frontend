@@ -482,6 +482,11 @@ export default {
         status: "booked",
       };
 
+      if (this.hasClientAppointmentConflict(appointment)) {
+        alert("This client already has an overlapping appointment with another beautician.");
+        return;
+      }
+
       try {
         const savedAppointment = await api.createAppointment(appointment);
         this.appointmentsList.push(savedAppointment);
@@ -622,6 +627,27 @@ export default {
       );
     },
 
+    hasClientAppointmentConflict(candidate) {
+      const [date, time] = candidate.dayandhour.split(" ");
+      const start = this.toMinutes(time);
+      const end = start + Number(candidate.duration || 60);
+
+      return this.appointmentsList.some((appointment) => {
+        if (appointment.status === "cancelled" && !Number(appointment.earningsAmount)) return false;
+        if (
+          appointment.client_name !== candidate.client_name ||
+          appointment.client_surname !== candidate.client_surname
+        ) return false;
+
+        const [appointmentDate, appointmentTime] = appointment.dayandhour.split(" ");
+        if (appointmentDate !== date) return false;
+
+        const appointmentStart = this.toMinutes(appointmentTime);
+        const appointmentEnd = appointmentStart + Number(appointment.duration || 60);
+        return start < appointmentEnd && end > appointmentStart;
+      });
+    },
+
     getCellData(employee, time) {
       const appointment = this.getAppointmentAt(employee, time);
       if (appointment) {
@@ -646,6 +672,9 @@ export default {
 
     getCellClass(employee, time) {
       const appointment = this.getAppointmentAt(employee, time);
+      if (appointment && this.currentUser.role === "Client" && !this.canViewAppointmentDetails(appointment)) {
+        return "cell-unavailable";
+      }
       if (appointment) return `cell-${appointment.status || "booked"}`;
       if (this.isWithinWorkHours(employee, time)) return "cell-available";
       return "cell-unavailable";
@@ -653,6 +682,9 @@ export default {
 
     getCellTitle(employee, time) {
       const appointment = this.getAppointmentAt(employee, time);
+      if (appointment && this.currentUser.role === "Client" && !this.canViewAppointmentDetails(appointment)) {
+        return "Unavailable";
+      }
       if (appointment) return this.appointmentStatusLabel(appointment);
       if (this.isWithinWorkHours(employee, time)) return "Available appointment";
       return "Beautician is not working";

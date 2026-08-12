@@ -1,4 +1,4 @@
-export const specialties = ["Haircut", "Facial", "Massage"];
+export const specialties = ["Nokti", "Depilacija", "Masaža"];
 
 const defaultSchedule = {
   Monday: { start: "09:00", end: "17:00" },
@@ -17,7 +17,7 @@ export const employeesData = [
     username: "Tara",
     password: "tara",
     role: "Admin",
-    specialties: ["Massage", "Facial"],
+    specialties: ["Masaža"],
     schedule: {
       Monday: { start: "07:00", end: "17:00" },
       Tuesday: { start: "08:00", end: "16:00" },
@@ -39,7 +39,7 @@ export const employeesData = [
     username: "Luna",
     password: "luna",
     role: "Beautician",
-    specialties: ["Facial"],
+    specialties: ["Nokti"],
     schedule: {
       Monday: { start: "10:00", end: "18:00" },
       Tuesday: { start: "10:00", end: "18:00" },
@@ -59,7 +59,7 @@ export const employeesData = [
     username: "Ana",
     password: "ana",
     role: "Beautician",
-    specialties: ["Haircut"],
+    specialties: ["Depilacija"],
     schedule: defaultSchedule,
     reviews: [],
     productOrders: [{ text: "", checked: false }],

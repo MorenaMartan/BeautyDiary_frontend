@@ -1,7 +1,29 @@
+import { getAccessToken, logout, saveAccessToken } from "@/data/auth";
+
 const ENV_API_URL = import.meta.env.VITE_API_URL?.trim();
 const API_URL = (ENV_API_URL || (import.meta.env.DEV ? "/api" : "")).replace(/\/$/, "");
 const FALLBACK_API_URL = "http://localhost:3000/api";
 const USE_LOCAL_FALLBACK = import.meta.env.DEV && API_URL !== FALLBACK_API_URL;
+let refreshPromise = null;
+
+async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Session expired");
+        const { token } = await response.json();
+        saveAccessToken(token);
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
 
 async function request(path, options = {}) {
   if (!API_URL) {
@@ -11,9 +33,11 @@ async function request(path, options = {}) {
   const { headers, ...requestConfig } = options;
   const requestOptions = {
     cache: "no-store",
+    credentials: "include",
     ...requestConfig,
     headers: {
       "Content-Type": "application/json",
+      ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
       ...(headers || {}),
     },
   };
@@ -37,12 +61,22 @@ async function request(path, options = {}) {
     }
   }
 
+  if (response.status === 401 && !options.skipTokenRefresh && getAccessToken()) {
+    try {
+      await refreshAccessToken();
+      return request(path, { ...options, skipTokenRefresh: true });
+    } catch {
+      logout();
+    }
+  }
+
   if (!response.ok) {
     const contentType = response.headers.get("content-type") || "";
     const error = contentType.includes("application/json")
       ? await response.json().catch(() => ({}))
       : { message: await response.text().catch(() => "") };
 
+    if (response.status === 401) logout();
     throw new Error(error.message || `Request failed (${response.status})`);
   }
 
@@ -61,6 +95,7 @@ async function request(path, options = {}) {
 export const api = {
   login: (data) => request("/auth/login", { method: "POST", body: JSON.stringify(data) }),
   signup: (data) => request("/auth/signup", { method: "POST", body: JSON.stringify(data) }),
+  logout: () => request("/auth/logout", { method: "POST", skipTokenRefresh: true }),
 
   getClients: () => request("/clients"),
   createClient: (data) => request("/clients", { method: "POST", body: JSON.stringify(data) }),
@@ -93,12 +128,39 @@ export const api = {
       method: "DELETE",
       headers: { "x-user-role": role },
     }),
+  updateSpecialty: (currentName, name, role = "Admin") =>
+    request(`/employees/specialties/${encodeURIComponent(currentName)}`, {
+      method: "PATCH",
+      headers: { "x-user-role": role },
+      body: JSON.stringify({ name, requestedByRole: role }),
+    }),
 
   getTreatments: () => request("/treatments"),
+  createTreatment: (data, role = "Admin") =>
+    request("/treatments", {
+      method: "POST",
+      headers: { "x-user-role": role },
+      body: JSON.stringify({ ...data, requestedByRole: role }),
+    }),
+  updateTreatment: (id, data, role = "Admin") =>
+    request(`/treatments/${id}`, {
+      method: "PATCH",
+      headers: { "x-user-role": role },
+      body: JSON.stringify({ ...data, requestedByRole: role }),
+    }),
+  deleteTreatment: (id, role = "Admin") =>
+    request(`/treatments/${id}`, {
+      method: "DELETE",
+      headers: { "x-user-role": role },
+    }),
   getAppointments: () => request("/appointments"),
   createAppointment: (data) => request("/appointments", { method: "POST", body: JSON.stringify(data) }),
   updateAppointment: (id, data) =>
     request(`/appointments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   cancelAppointment: (id) => request(`/appointments/${id}/cancel`, { method: "PATCH" }),
   deleteAppointment: (id) => request(`/appointments/${id}`, { method: "DELETE" }),
+
+  getReviews: (employee) => request(`/reviews${employee ? `?employee=${encodeURIComponent(employee)}` : ""}`),
+  createReview: (employee, data) =>
+    request(`/reviews/${encodeURIComponent(employee)}`, { method: "POST", body: JSON.stringify(data) }),
 };

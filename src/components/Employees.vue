@@ -164,6 +164,13 @@
               class="badge bg-danger text-white"
             >
               {{ s }}
+              <button
+                v-if="currentUser.role === 'Admin'"
+                class="specialty-delete"
+                @click="removeSpecialty(s)"
+              >
+                ×
+              </button>
             </span>
           </div>
 
@@ -545,10 +552,16 @@ export default {
       this.showAddForm = false;
     },
     async assignSpecialty() {
+      if (this.currentUser.role !== "Admin" || !this.selectedSpecialty) return;
       if (!this.selectedEmployee.specialties) this.selectedEmployee.specialties = [];
       if (!this.selectedEmployee.specialties.includes(this.selectedSpecialty)) {
         this.selectedEmployee.specialties.push(this.selectedSpecialty);
       }
+      await this.persistSelectedEmployee();
+    },
+    async removeSpecialty(specialty) {
+      if (this.currentUser.role !== "Admin" || !this.selectedEmployee) return;
+      this.selectedEmployee.specialties = this.selectedEmployee.specialties.filter((item) => item !== specialty);
       await this.persistSelectedEmployee();
     },
     async addSpecialty() {

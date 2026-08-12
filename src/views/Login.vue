@@ -29,7 +29,7 @@
 </template>
 
 <script>
-import { login } from "@/data/auth";
+import { saveSession } from "@/data/auth";
 import { api } from "@/services/api";
 
 export default {
@@ -45,24 +45,12 @@ export default {
       this.error = "";
 
       try {
-        const { user } = await api.login({ username: this.username, password: this.password });
-        localStorage.setItem("beautyDiaryUser", JSON.stringify(user));
+        const { user, token } = await api.login({ username: this.username, password: this.password });
+        saveSession(user, token);
         this.$router.push("/dashboard");
-        return;
       } catch (error) {
-        if (!import.meta.env.DEV) {
-          this.error = error.message || "Wrong username or password.";
-          return;
-        }
+        this.error = error.message || "Wrong username or password.";
       }
-
-      const user = login(this.username, this.password);
-      if (!user) {
-        this.error = "Wrong username or password.";
-        return;
-      }
-
-      this.$router.push("/dashboard");
     },
   },
 };

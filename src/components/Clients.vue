@@ -141,6 +141,42 @@
           </div>
         </div>
       </div>
+
+      <div v-if="selectedClient" class="card level3-card p-3 flex-shrink-0">
+        <b class="mb-2">Appointments</b>
+
+        <div class="appointment-section">
+          <b>Upcoming appointments</b>
+          <div v-if="!upcomingAppointments.length" class="text-muted small mt-1">
+            No upcoming appointments.
+          </div>
+          <div
+            v-for="appointment in upcomingAppointments"
+            :key="appointment.id"
+            class="appointment-row"
+          >
+            <div>{{ appointment.dayandhour }}</div>
+            <div>{{ appointment.treatment }} with {{ appointment.beautician }}</div>
+            <small>{{ appointment.status || "booked" }}</small>
+          </div>
+        </div>
+
+        <div class="appointment-section">
+          <b>Past appointments</b>
+          <div v-if="!pastAppointments.length" class="text-muted small mt-1">
+            No past appointments.
+          </div>
+          <div
+            v-for="appointment in pastAppointments"
+            :key="appointment.id"
+            class="appointment-row"
+          >
+            <div>{{ appointment.dayandhour }}</div>
+            <div>{{ appointment.treatment }} with {{ appointment.beautician }}</div>
+            <small>{{ appointment.status || "booked" }}</small>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -158,6 +194,7 @@ export default {
       selectedClient: null,
       editMode: false,
       clientsList: clients,
+      appointmentsList: appointments,
     };
   },
   computed: {
@@ -172,12 +209,29 @@ export default {
     },
     doneTreatments() {
       if (!this.selectedClient) return 0;
-      return appointments.filter(
+      return this.clientAppointments.filter(
         (a) =>
-          a.client_name === this.selectedClient.name &&
-          a.client_surname === this.selectedClient.surname &&
           a.status !== "cancelled",
       ).length;
+    },
+    clientAppointments() {
+      if (!this.selectedClient) return [];
+
+      return this.appointmentsList.filter(
+        (appointment) =>
+          appointment.client_name === this.selectedClient.name &&
+          appointment.client_surname === this.selectedClient.surname,
+      );
+    },
+    upcomingAppointments() {
+      return this.clientAppointments
+        .filter((appointment) => new Date(appointment.dayandhour) > new Date())
+        .sort((a, b) => new Date(a.dayandhour) - new Date(b.dayandhour));
+    },
+    pastAppointments() {
+      return this.clientAppointments
+        .filter((appointment) => new Date(appointment.dayandhour) <= new Date())
+        .sort((a, b) => new Date(b.dayandhour) - new Date(a.dayandhour));
     },
     beautyPoints() {
       if (!this.selectedClient) return 0;
@@ -234,11 +288,17 @@ export default {
   },
   async mounted() {
     try {
-      this.clientsList = await api.getClients();
+      const [savedClients, savedAppointments] = await Promise.all([
+        api.getClients(),
+        api.getAppointments(),
+      ]);
+      this.clientsList = savedClients;
+      this.appointmentsList = savedAppointments;
     } catch (error) {
       console.error(error);
       if (import.meta.env.DEV) {
         this.clientsList = clients;
+        this.appointmentsList = appointments;
       } else {
         alert(error.message);
       }
@@ -294,5 +354,20 @@ input.form-control-sm {
 .main-wrapper {
   max-height: 80vh;
   overflow: hidden;
+}
+
+.appointment-section + .appointment-section {
+  margin-top: 18px;
+}
+
+.appointment-row {
+  border-bottom: 1px solid rgba(139, 0, 0, 0.15);
+  font-size: 14px;
+  padding: 8px 0;
+}
+
+.appointment-row small {
+  color: #6c757d;
+  text-transform: capitalize;
 }
 </style>
