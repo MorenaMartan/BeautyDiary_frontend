@@ -13,6 +13,19 @@
         </div>
         <hr />
         <div><b>Beauty points:</b> {{ beautyPoints }}</div>
+        <div class="small text-muted mt-1">
+          {{ loyaltySettings.pointsRequired }} points = {{ loyaltySettings.discountPercentage }}% discount
+        </div>
+        <button
+          class="btn btn-sm btn-danger text-white mt-2 w-100"
+          :disabled="!canRedeemBeautyPoints"
+          @click="startBeautyPointsBooking"
+        >
+          Book with Beauty Points
+        </button>
+        <div v-if="!canRedeemBeautyPoints" class="small text-muted mt-1">
+          You need {{ loyaltySettings.pointsRequired }} points to use the discount.
+        </div>
       </div>
 
       <div class="card level2-card p-3 flex-shrink-0">
@@ -21,6 +34,12 @@
         <div v-for="a in upcoming" :key="a.id || a.dayandhour" class="border-bottom py-2">
           <div>{{ a.dayandhour }} - {{ a.treatment }}</div>
           <div>{{ a.beautician }}</div>
+          <div v-if="a.beautyPointsRedeemed" class="small text-success">
+            {{ a.beautyPointsRedeemed }} Beauty Points used:
+            <span class="text-decoration-line-through">{{ a.originalPrice }} €</span>
+            <b>{{ a.price }} €</b>
+            <div class="text-muted">Used points are not returned after cancellation.</div>
+          </div>
           <button
             class="btn btn-sm btn-outline-secondary mt-1 me-1"
             @click="downloadAppointmentConfirmation(a)"
@@ -34,8 +53,11 @@
           >
             Cancel
           </button>
-          <div v-if="!canCancel(a)" class="small text-muted mt-1">
-            Appointments can be cancelled only more than 24 hours before they start.
+          <div v-if="canCancel(a) && cancellationFee(a)" class="small text-muted mt-1">
+            Cancelling within 24 hours adds a {{ cancellationFee(a) }} € fee to your balance.
+          </div>
+          <div v-else-if="!canCancel(a)" class="small text-muted mt-1">
+            Appointments cannot be cancelled after they have started.
           </div>
         </div>
       </div>
@@ -73,8 +95,37 @@
           </option>
         </select>
 
+        <div class="beauty-points-box mb-3">
+          <div><b>Beauty points:</b> {{ beautyPoints }}</div>
+          <div class="small text-muted">
+            Use {{ loyaltySettings.pointsRequired }} points for a
+            {{ loyaltySettings.discountPercentage }}% discount.
+          </div>
+          <div class="small text-muted mt-1">
+            Points are deducted when the booking is confirmed. A discounted treatment does not earn new points.
+          </div>
+          <button
+            class="btn btn-sm mt-2"
+            :class="useBeautyPoints ? 'btn-danger text-white' : 'btn-outline-danger'"
+            :disabled="!canRedeemBeautyPoints"
+            @click="useBeautyPoints = !useBeautyPoints"
+          >
+            {{ useBeautyPoints ? "Discount selected" : "Use Beauty Points" }}
+          </button>
+          <div v-if="useBeautyPoints && selectedTreatmentData" class="small mt-2">
+            Price:
+            <span class="text-decoration-line-through me-1">{{ selectedTreatmentData.price }} €</span>
+            <b>{{ discountedTreatmentPrice }} €</b>
+          </div>
+        </div>
+
         <label class="form-label fw-bold mb-1">Date</label>
-        <input v-model="selectedDate" type="date" class="form-control form-control-sm mb-2" />
+        <input
+          v-model="selectedDate"
+          type="date"
+          class="form-control form-control-sm mb-2"
+          :min="todayDate"
+        />
 
         <label class="form-label fw-bold mb-1">Beautician</label>
         <select v-model="selectedBeautician" class="form-select form-select-sm mb-2">
@@ -134,12 +185,24 @@ export default {
       clientsList: localClients,
       employeesList: localEmployees,
       selectedTreatment: localTreatments[0]?.name || "",
-      selectedDate: new Date().toISOString().slice(0, 10),
+      selectedDate: new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10),
       selectedBeautician: "",
       selectedTime: "",
+      useBeautyPoints: false,
+      loyaltySettings: {
+        eurosSpent: 15,
+        pointsEarned: 1,
+        pointsRequired: 10,
+        discountPercentage: 10,
+      },
     };
   },
   computed: {
+    todayDate() {
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60 * 1000;
+      return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+    },
     client() {
       return (
         this.clientsList.find((c) => c.id === this.currentUser.id) ||
@@ -167,7 +230,17 @@ export default {
       );
     },
     beautyPoints() {
-      return Math.floor((this.client?.wallet || 0) / 20) - (this.client?.spentBeautyPoints || 0);
+      const earned =
+        Math.floor((this.client?.wallet || 0) / this.loyaltySettings.eurosSpent) *
+        this.loyaltySettings.pointsEarned;
+      return Math.max(0, earned - (this.client?.spentBeautyPoints || 0));
+    },
+    canRedeemBeautyPoints() {
+      return this.beautyPoints >= this.loyaltySettings.pointsRequired;
+    },
+    discountedTreatmentPrice() {
+      const price = Number(this.selectedTreatmentData?.price || 0);
+      return Math.round(price * (1 - this.loyaltySettings.discountPercentage / 100) * 100) / 100;
     },
     selectedTreatmentData() {
       return this.treatmentsList.find((t) => t.name === this.selectedTreatment) || this.treatmentsList[0];
@@ -190,7 +263,8 @@ export default {
       const duration = Number(this.selectedTreatmentData.duration || 60);
       for (let min = this.toMinutes(schedule.start); min + duration <= this.toMinutes(schedule.end); min += 15) {
         const time = this.toTime(min);
-        if (!this.overlapsExisting(emp.name, time, duration)) times.push(time);
+        const startsAt = new Date(`${this.selectedDate}T${time}:00`);
+        if (startsAt > new Date() && !this.overlapsExisting(emp.name, time, duration)) times.push(time);
       }
 
       return times;
@@ -216,17 +290,20 @@ export default {
   methods: {
     async loadData() {
       try {
-        const [clients, employees, treatments, appointments] = await Promise.all([
+        const [clients, employees, treatments, appointments, loyaltySettings] = await Promise.all([
           api.getClients(),
           api.getEmployees(),
           api.getTreatments(),
           api.getAppointments(),
+          api.getLoyaltySettings(),
         ]);
 
         this.clientsList = clients;
         this.employeesList = employees;
         this.treatmentsList = treatments;
         this.appointmentsList = appointments;
+        this.loyaltySettings = loyaltySettings;
+        if (!this.canRedeemBeautyPoints) this.useBeautyPoints = false;
         if (!this.selectedTreatment && treatments[0]) this.selectedTreatment = treatments[0].name;
       } catch (error) {
         console.error(error);
@@ -257,13 +334,34 @@ export default {
         this.selectedTime = this.availableTimes[0];
       }
     },
+    startBeautyPointsBooking() {
+      if (!this.canRedeemBeautyPoints) return;
+      this.$emit("book-with-points");
+    },
     canCancel(a) {
       const diff = new Date(a.dayandhour) - new Date();
-      return diff > 24 * 60 * 60 * 1000;
+      return diff > 0;
+    },
+    cancellationFee(a) {
+      const diff = new Date(a.dayandhour) - new Date();
+      if (diff > 24 * 60 * 60 * 1000) return 0;
+      return Number(a.price || 0) / 2;
     },
     async cancelAppointment(a) {
       if (!this.canCancel(a)) return;
       try {
+        const cancellationMessages = [];
+        if (a.beautyPointsRedeemed) {
+          cancellationMessages.push("Used Beauty Points will not be returned.");
+        }
+        if (this.cancellationFee(a)) {
+          cancellationMessages.push(
+            `Cancelling this appointment adds a ${this.cancellationFee(a)} € fee to your balance.`,
+          );
+        }
+        if (cancellationMessages.length && !confirm(`${cancellationMessages.join("\n")}\nContinue?`)) {
+          return;
+        }
         const cancelled = await api.cancelAppointment(a.id);
         Object.assign(a, cancelled);
       } catch (error) {
@@ -326,6 +424,13 @@ export default {
       pdf.save(`beauty-diary-appointment-${appointment.dayandhour.slice(0, 10)}.pdf`);
     },
     async bookAppointment() {
+      const startsAt = new Date(`${this.selectedDate}T${this.selectedTime}:00`);
+      if (Number.isNaN(startsAt.getTime()) || startsAt <= new Date()) {
+        alert("Appointments can be booked only in the future.");
+        this.syncSelectedTime();
+        return;
+      }
+
       const appointment = {
         client_name: this.client?.name || this.currentUser.name,
         client_surname: this.client?.surname || this.currentUser.surname || "",
@@ -335,12 +440,18 @@ export default {
         price: this.selectedTreatmentData?.price || 0,
         duration: this.selectedTreatmentData?.duration || 60,
         status: "booked",
+        useBeautyPoints: this.useBeautyPoints,
       };
 
       try {
         const savedAppointment = await api.createAppointment(appointment);
         this.appointmentsList.push(savedAppointment);
-        alert("Appointment booked.");
+        alert(
+          this.useBeautyPoints
+            ? `Appointment booked with a ${savedAppointment.discountPercentage}% Beauty Points discount.`
+            : "Appointment booked.",
+        );
+        this.useBeautyPoints = false;
         await this.loadData();
       } catch (error) {
         alert(error.message);
@@ -351,7 +462,7 @@ export default {
       const end = start + duration;
 
       return this.appointmentsList.some((appointment) => {
-        if (appointment.status === "cancelled" && !Number(appointment.earningsAmount)) return false;
+        if (appointment.status === "cancelled") return false;
         if (!appointment.dayandhour?.startsWith(this.selectedDate)) return false;
 
         const appointmentStart = this.toMinutes(appointment.dayandhour.split(" ")[1]);
@@ -401,6 +512,12 @@ export default {
 }
 .new-treatment-card {
   width: 360px;
+}
+.beauty-points-box {
+  padding: 12px;
+  border: 1px solid #e6c5c5;
+  border-radius: 10px;
+  background: #fff8f8;
 }
 .list-group-item {
   cursor: pointer;

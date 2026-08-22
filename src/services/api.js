@@ -61,7 +61,7 @@ async function request(path, options = {}) {
     }
   }
 
-  if (response.status === 401 && !options.skipTokenRefresh && getAccessToken()) {
+  if (response.status === 401 && !options.skipTokenRefresh) {
     try {
       await refreshAccessToken();
       return request(path, { ...options, skipTokenRefresh: true });
@@ -93,65 +93,94 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  refreshSession: () => refreshAccessToken(),
   login: (data) => request("/auth/login", { method: "POST", body: JSON.stringify(data) }),
   signup: (data) => request("/auth/signup", { method: "POST", body: JSON.stringify(data) }),
   logout: () => request("/auth/logout", { method: "POST", skipTokenRefresh: true }),
+  getLoyaltySettings: () => request("/loyalty-settings"),
+  updateLoyaltySettings: (data) => request("/loyalty-settings", { method: "PUT", body: JSON.stringify(data) }),
 
   getClients: () => request("/clients"),
+  getClientStats: () => request("/clients/stats"),
   createClient: (data) => request("/clients", { method: "POST", body: JSON.stringify(data) }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 
   getEmployees: () => request("/employees"),
-  createEmployee: (data, role = "Admin") =>
+  createEmployee: (data) =>
     request("/employees", {
       method: "POST",
-      headers: { "x-user-role": role },
-      body: JSON.stringify({ ...data, requestedByRole: role }),
+      body: JSON.stringify(data),
     }),
-  updateEmployee: (id, data, role = "Admin") =>
+  updateEmployee: (id, data) =>
     request(`/employees/${id}`, {
       method: "PATCH",
-      headers: { "x-user-role": role },
-      body: JSON.stringify({ ...data, requestedByRole: role }),
+      body: JSON.stringify(data),
     }),
   updateEmployeeProfile: (id, data) =>
     request(`/employees/${id}/profile`, { method: "PATCH", body: JSON.stringify(data) }),
+  updateEmployeeSchedule: (id, schedule) =>
+    request(`/employees/${id}/schedule`, {
+      method: "PATCH",
+      body: JSON.stringify({ schedule }),
+    }),
+  updateEmployeeVacations: (id, vacations) =>
+    request(`/employees/${id}/vacations`, {
+      method: "PATCH",
+      body: JSON.stringify({ vacations }),
+    }),
+  updateVacationAllowance: (id, vacationAllowance) =>
+    request(`/employees/${id}/vacation-allowance`, {
+      method: "PATCH",
+      body: JSON.stringify({ vacationAllowance }),
+    }),
+  deleteEmployee: (id) =>
+    request(`/employees/${id}`, { method: "DELETE" }),
   getSpecialties: () => request("/employees/specialties"),
-  createSpecialty: (name, role = "Admin") =>
+  createSpecialty: (name) =>
     request("/employees/specialties", {
       method: "POST",
-      headers: { "x-user-role": role },
-      body: JSON.stringify({ name, requestedByRole: role }),
+      body: JSON.stringify({ name }),
     }),
-  deleteSpecialty: (name, role = "Admin") =>
+  deleteSpecialty: (name) =>
     request(`/employees/specialties/${encodeURIComponent(name)}`, {
       method: "DELETE",
-      headers: { "x-user-role": role },
     }),
-  updateSpecialty: (currentName, name, role = "Admin") =>
+  updateSpecialty: (currentName, name) =>
     request(`/employees/specialties/${encodeURIComponent(currentName)}`, {
       method: "PATCH",
-      headers: { "x-user-role": role },
-      body: JSON.stringify({ name, requestedByRole: role }),
+      body: JSON.stringify({ name }),
     }),
 
+  getProductOrders: () => request("/product-orders"),
+  createProductOrder: (employeeId, text = "") =>
+    request(`/product-orders/${employeeId}`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  updateProductOrder: (employeeId, index, data) =>
+    request(`/product-orders/${employeeId}/${index}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteProductOrder: (employeeId, index) =>
+    request(`/product-orders/${employeeId}/${index}`, { method: "DELETE" }),
+  cleanupProductOrders: () =>
+    request("/product-orders/cleanup", { method: "POST" }),
+
   getTreatments: () => request("/treatments"),
-  createTreatment: (data, role = "Admin") =>
+  createTreatment: (data) =>
     request("/treatments", {
       method: "POST",
-      headers: { "x-user-role": role },
-      body: JSON.stringify({ ...data, requestedByRole: role }),
+      body: JSON.stringify(data),
     }),
-  updateTreatment: (id, data, role = "Admin") =>
+  updateTreatment: (id, data) =>
     request(`/treatments/${id}`, {
       method: "PATCH",
-      headers: { "x-user-role": role },
-      body: JSON.stringify({ ...data, requestedByRole: role }),
+      body: JSON.stringify(data),
     }),
-  deleteTreatment: (id, role = "Admin") =>
+  deleteTreatment: (id) =>
     request(`/treatments/${id}`, {
       method: "DELETE",
-      headers: { "x-user-role": role },
     }),
   getAppointments: () => request("/appointments"),
   createAppointment: (data) => request("/appointments", { method: "POST", body: JSON.stringify(data) }),

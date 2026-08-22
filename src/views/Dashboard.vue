@@ -55,6 +55,7 @@
             :is="activeView"
             :current-user="currentUser"
             :mode="activeComponent === 'New treatment' ? 'new' : 'list'"
+            @book-with-points="activeComponent = 'New treatment'"
           />
         </div>
       </main>
@@ -106,21 +107,21 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from "vue";
 import background from "@/assets/background.png";
 
-import Calendar from "@/components/Calendar.vue";
-import Employees from "@/components/Employees.vue";
-import Clients from "@/components/Clients.vue";
-import Sales from "@/components/Sales.vue";
-import Settings from "@/components/Settings.vue";
-import ClientAppointments from "@/components/ClientAppointments.vue";
-import Reviews from "@/components/Reviews.vue";
-import Earnings from "@/components/Earnings.vue";
-import ProductOrders from "@/components/ProductOrders.vue";
 import { getCurrentUser, logout } from "@/data/auth";
-import { clients } from "@/data/clientsData";
-import { employeesData } from "@/data/employeesData";
 import { api } from "@/services/api";
+
+const Calendar = defineAsyncComponent(() => import("@/components/Calendar.vue"));
+const Employees = defineAsyncComponent(() => import("@/components/Employees.vue"));
+const Clients = defineAsyncComponent(() => import("@/components/Clients.vue"));
+const Sales = defineAsyncComponent(() => import("@/components/Sales.vue"));
+const Settings = defineAsyncComponent(() => import("@/components/Settings.vue"));
+const ClientAppointments = defineAsyncComponent(() => import("@/components/ClientAppointments.vue"));
+const Reviews = defineAsyncComponent(() => import("@/components/Reviews.vue"));
+const Earnings = defineAsyncComponent(() => import("@/components/Earnings.vue"));
+const ProductOrders = defineAsyncComponent(() => import("@/components/ProductOrders.vue"));
 
 export default {
   data() {
@@ -169,6 +170,7 @@ export default {
 
       const items = [
         { name: "Calendar", label: "Calendar" },
+        { name: "Employees", label: "Employees" },
         { name: "Clients", label: "Clients" },
         { name: "Reviews", label: "Reviews" },
         { name: "Earnings", label: "Earnings" },
@@ -176,7 +178,6 @@ export default {
       ];
 
       if (this.currentUser.role === "Admin") {
-        items.splice(1, 0, { name: "Employees", label: "Employees" });
         items.push({ name: "Sales", label: "Sales" });
         items.push({ name: "Settings", label: "Settings" });
       }
@@ -220,11 +221,8 @@ export default {
           savedClients.find((c) => c.id === this.currentUser.id) ||
           savedClients.find((c) => c.username === this.currentUser.username)
         );
-      } catch (error) {
-        return (
-          clients.find((c) => c.id === this.currentUser.id) ||
-          clients.find((c) => c.username === this.currentUser.username)
-        );
+      } catch {
+        return null;
       }
     },
 
@@ -235,8 +233,8 @@ export default {
           employees.find((e) => e.id === this.currentUser.id) ||
           employees.find((e) => e.username === this.currentUser.username)
         );
-      } catch (error) {
-        return employeesData.find((e) => e.username === this.currentUser.username);
+      } catch {
+        return null;
       }
     },
 
@@ -278,7 +276,7 @@ export default {
         username: savedUser.username,
       };
 
-      localStorage.setItem("beautyDiaryUser", JSON.stringify(this.currentUser));
+      sessionStorage.setItem("beautyDiaryUser", JSON.stringify(this.currentUser));
       this.showProfileModal = false;
     },
 

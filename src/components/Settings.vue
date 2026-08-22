@@ -110,7 +110,7 @@
           </div>
         </div>
 
-        <div v-else class="clients-settings">
+        <div v-else-if="selectedMenu === 'Clients'" class="clients-settings">
           <div class="settings-section all-clients-section">
             <div class="d-flex justify-content-between align-items-center gap-2">
               <div class="section-title mb-0">Client directory</div>
@@ -130,7 +130,7 @@
               :key="c.id"
               class="client-row"
             >
-              <span>{{ c.name }} {{ c.surname }} - {{ c.wallet }} €</span>
+              <span>{{ c.name }} {{ c.surname }} - {{ c.spentLast30Days }} €</span>
               <button
                 class="btn btn-sm btn-outline-danger"
                 @click="prepareMail(c, '10% discount')"
@@ -144,7 +144,7 @@
             <div class="section-title">Top 5 cancellations last 90 days</div>
             <div v-for="c in topCancelled" :key="c.id" class="client-row">
               <span>{{ c.name }} {{ c.surname }}</span>
-              <span>{{ c.cancelled }}</span>
+              <span>{{ c.cancelledLast90Days }}</span>
             </div>
           </div>
 
@@ -172,6 +172,21 @@
               </button>
             </div>
           </div>
+        </div>
+
+        <div v-else class="loyalty-settings">
+          <h5>Beauty Points</h5>
+          <p class="text-muted small">Set how clients earn points and what discount they receive when redeeming them.</p>
+          <label class="form-label">Euros spent</label>
+          <input v-model.number="loyaltySettings.eurosSpent" type="number" min="1" class="form-control mb-2" />
+          <label class="form-label">Points earned</label>
+          <input v-model.number="loyaltySettings.pointsEarned" type="number" min="1" class="form-control mb-3" />
+          <div class="small text-muted mb-3">Example: every {{ loyaltySettings.eurosSpent || 0 }} € spent earns {{ loyaltySettings.pointsEarned || 0 }} point(s).</div>
+          <label class="form-label">Points required for discount</label>
+          <input v-model.number="loyaltySettings.pointsRequired" type="number" min="1" class="form-control mb-2" />
+          <label class="form-label">Discount percentage</label>
+          <input v-model.number="loyaltySettings.discountPercentage" type="number" min="1" max="100" class="form-control mb-3" />
+          <button class="btn btn-danger text-white" @click="saveLoyaltySettings">Save Beauty Points rules</button>
         </div>
       </div>
     </div>
@@ -277,11 +292,18 @@ export default {
   data() {
     return {
       selectedMenu: "Price List",
-      menu: ["Price List", "Clients"],
+      menu: ["Price List", "Clients", "Beauty Points"],
       treatments: [...treatments],
       clients,
       categories: [...specialties],
       categoryNames: Object.fromEntries(specialties.map((category) => [category, category])),
+      clientStats: {
+        topSpenders: [],
+        mostCancelled: [],
+        newClients: [],
+        inactiveClients: [],
+      },
+      loyaltySettings: { eurosSpent: 15, pointsEarned: 1, pointsRequired: 10, discountPercentage: 10 },
       newCategory: "",
       appointments: [],
       selectedClient: null,
@@ -305,16 +327,16 @@ export default {
       );
     },
     topSpenders() {
-      return [...this.clients].sort((a, b) => b.wallet - a.wallet).slice(0, 5);
+      return this.clientStats.topSpenders;
     },
     topCancelled() {
-      return [...this.clients].sort((a, b) => b.cancelled - a.cancelled).slice(0, 5);
+      return this.clientStats.mostCancelled;
     },
     newClients() {
-      return this.clients.slice(-5);
+      return this.clientStats.newClients;
     },
     inactiveClients() {
-      return this.clients.slice(0, 5);
+      return this.clientStats.inactiveClients;
     },
     sortedClients() {
       return [...this.clients].sort((a, b) =>
@@ -331,6 +353,14 @@ export default {
         this.categories = await api.createSpecialty(category, this.currentUser.role);
         this.categoryNames = Object.fromEntries(this.categories.map((name) => [name, name]));
         this.newCategory = "";
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    async saveLoyaltySettings() {
+      try {
+        this.loyaltySettings = await api.updateLoyaltySettings(this.loyaltySettings);
+        alert("Beauty Points rules saved.");
       } catch (error) {
         alert(error.message);
       }
@@ -420,17 +450,21 @@ export default {
   },
   async mounted() {
     try {
-      const [savedTreatments, savedCategories, savedClients, savedAppointments] = await Promise.all([
+      const [savedTreatments, savedCategories, savedClients, savedAppointments, clientStats, loyaltySettings] = await Promise.all([
         api.getTreatments(),
         api.getSpecialties(),
         api.getClients(),
         api.getAppointments(),
+        api.getClientStats(),
+        api.getLoyaltySettings(),
       ]);
       this.treatments = savedTreatments;
       this.categories = savedCategories;
       this.categoryNames = Object.fromEntries(savedCategories.map((category) => [category, category]));
       this.clients = savedClients;
       this.appointments = savedAppointments;
+      this.clientStats = clientStats;
+      this.loyaltySettings = loyaltySettings;
       this.selectedClient = this.sortedClients[0] || null;
     } catch (error) {
       console.error(error);

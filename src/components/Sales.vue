@@ -349,55 +349,154 @@ export default {
           ? this.formattedSelectedDate
           : `${this.months.find((month) => month.value === this.selectedMonth)?.label} ${this.selectedMonth.slice(0, 4)}`;
         const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-
-        pdf.setFillColor(139, 0, 0);
-        pdf.rect(0, 0, 297, 7, "F");
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(25);
-        pdf.setTextColor(139, 0, 0);
-        pdf.text("Beauty Diary", 15, 22);
-        pdf.setFontSize(11);
-        pdf.setTextColor(111, 99, 99);
-        pdf.text("Salon management report", 15, 29);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(`Generated: ${new Date().toLocaleDateString("hr-HR")}`, 282, 22, { align: "right" });
-        pdf.text(`Report type: ${this.selectedMenu}`, 282, 29, { align: "right" });
-        pdf.setDrawColor(139, 0, 0);
-        pdf.line(15, 35, 282, 35);
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(16);
-        pdf.setTextColor(60, 48, 48);
-        pdf.text("Sales overview", 15, 46);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(11);
-        pdf.setTextColor(111, 99, 99);
-        pdf.text(`Reporting period: ${period}`, 15, 53);
-
-        [["Total appointments", this.filteredAppointments.length], ["Booked hours", this.formatMetric(hours)], ["Total revenue", `${this.formatMetric(revenue)} €`]].forEach(([label, value], index) => {
-          const x = 15 + index * 90;
-          pdf.setFillColor(248, 238, 238);
-          pdf.roundedRect(x, 61, 82, 22, 2, 2, "F");
-          pdf.setFontSize(9);
-          pdf.setTextColor(120, 107, 107);
-          pdf.text(label, x + 5, 69);
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(15);
-          pdf.setTextColor(139, 0, 0);
-          pdf.text(String(value), x + 5, 78);
-          pdf.setFont("helvetica", "normal");
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 15;
+        const generatedAt = new Date().toLocaleString("hr-HR", {
+          dateStyle: "medium",
+          timeStyle: "short",
         });
-
-        charts.forEach(([title, image], index) => {
-          const x = index % 2 === 0 ? 15 : 150;
-          const y = index < 2 ? 92 : 170;
-          pdf.setDrawColor(234, 218, 218);
-          pdf.roundedRect(x, y, 132, 72, 3, 3, "S");
+        const drawHeader = (title, subtitle) => {
+          pdf.setFillColor(112, 18, 42);
+          pdf.rect(0, 0, pageWidth, 28, "F");
+          pdf.setFillColor(255, 255, 255);
+          pdf.circle(margin + 6, 14, 6, "F");
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8);
+          pdf.setTextColor(112, 18, 42);
+          pdf.text("BD", margin + 6, 16, { align: "center" });
+          pdf.setFontSize(20);
+          pdf.setTextColor(255, 255, 255);
+          pdf.text("Beauty Diary", margin + 16, 14);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8.5);
+          pdf.setTextColor(247, 215, 224);
+          pdf.text("SALON MANAGEMENT REPORT", margin + 16, 21);
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(11);
-          pdf.setTextColor(139, 0, 0);
-          pdf.text(title, x + 5, y + 8);
-          pdf.addImage(image, "PNG", x + 4, y + 12, 124, 55);
+          pdf.setTextColor(255, 255, 255);
+          pdf.text(title, pageWidth - margin, 12, { align: "right" });
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8.5);
+          pdf.setTextColor(247, 215, 224);
+          pdf.text(subtitle, pageWidth - margin, 19, { align: "right" });
+        };
+        const drawChart = ([title, image], x, y, width = 128, height = 90) => {
+          pdf.setFillColor(255, 252, 253);
+          pdf.setDrawColor(231, 214, 218);
+          pdf.roundedRect(x, y, width, height, 3, 3, "FD");
+          pdf.setFillColor(112, 18, 42);
+          pdf.roundedRect(x, y, width, 11, 3, 3, "F");
+          pdf.rect(x, y + 6, width, 5, "F");
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(9.5);
+          pdf.setTextColor(255, 255, 255);
+          pdf.text(title, x + 5, y + 7.5);
+          pdf.addImage(image, "PNG", x + 4, y + 14, width - 8, height - 18);
+        };
+        const drawTableHeader = (y) => {
+          pdf.setFillColor(112, 18, 42);
+          pdf.rect(margin, y, pageWidth - margin * 2, 9, "F");
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(8);
+          pdf.setTextColor(255, 255, 255);
+          pdf.text("EMPLOYEE", margin + 4, y + 5.8);
+          pdf.text("APPOINTMENTS", 115, y + 5.8, { align: "right" });
+          pdf.text("BOOKED HOURS", 190, y + 5.8, { align: "right" });
+          pdf.text("REVENUE", pageWidth - margin - 4, y + 5.8, { align: "right" });
+          return y + 9;
+        };
+
+        drawHeader("Sales report", this.selectedMenu);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.setTextColor(54, 42, 45);
+        pdf.text("Sales overview", margin, 41);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        pdf.setTextColor(111, 99, 102);
+        pdf.text(`Reporting period: ${period}`, margin, 48);
+        pdf.text(`Generated: ${generatedAt}`, pageWidth - margin, 48, { align: "right" });
+
+        const averageRevenue = this.filteredAppointments.length
+          ? revenue / this.filteredAppointments.length
+          : 0;
+        const metrics = [
+          ["COMPLETED APPOINTMENTS", this.filteredAppointments.length],
+          ["BOOKED HOURS", this.formatMetric(hours)],
+          ["TOTAL REVENUE", `${this.formatMetric(revenue)} €`],
+          ["AVERAGE SALE", `${this.formatMetric(averageRevenue)} €`],
+        ];
+        const metricGap = 5;
+        const metricWidth = (pageWidth - margin * 2 - metricGap * 3) / 4;
+        metrics.forEach(([label, value], index) => {
+          const x = margin + index * (metricWidth + metricGap);
+          pdf.setFillColor(250, 240, 243);
+          pdf.roundedRect(x, 56, metricWidth, 23, 2, 2, "F");
+          pdf.setFillColor(112, 18, 42);
+          pdf.rect(x, 56, 2, 23, "F");
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(7.5);
+          pdf.setTextColor(112, 18, 42);
+          pdf.text(label, x + 6, 64);
+          pdf.setFontSize(14);
+          pdf.setTextColor(54, 42, 45);
+          pdf.text(String(value), x + 6, 74);
         });
+
+        drawChart(charts[0], margin, 88);
+        drawChart(charts[1], pageWidth - margin - 128, 88);
+
+        pdf.addPage();
+        drawHeader("Sales analytics", period);
+        drawChart(charts[2], margin, 36, 128, 82);
+        drawChart(charts[3], pageWidth - margin - 128, 36, 128, 82);
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(54, 42, 45);
+        pdf.text("Employee performance", margin, 130);
+        const employeeNames = Object.keys(this.chartData.employees);
+        let tableY = drawTableHeader(136);
+        if (!employeeNames.length) {
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(9);
+          pdf.setTextColor(111, 99, 102);
+          pdf.text("No completed appointments are available for this period.", margin + 4, tableY + 7);
+        }
+        employeeNames.forEach((employeeName, index) => {
+          if (tableY + 9 > pageHeight - 17) {
+            pdf.addPage();
+            drawHeader("Employee performance", `${period} - continued`);
+            tableY = drawTableHeader(36);
+          }
+          if (index % 2 === 0) {
+            pdf.setFillColor(253, 248, 249);
+            pdf.rect(margin, tableY, pageWidth - margin * 2, 9, "F");
+          }
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8.5);
+          pdf.setTextColor(54, 42, 45);
+          pdf.text(employeeName, margin + 4, tableY + 5.8);
+          pdf.text(String(this.chartData.employees[employeeName] || 0), 115, tableY + 5.8, { align: "right" });
+          pdf.text(this.formatMetric(this.chartData.hours[employeeName] || 0), 190, tableY + 5.8, { align: "right" });
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(112, 18, 42);
+          pdf.text(`${this.formatMetric(this.chartData.earnings[employeeName] || 0)} €`, pageWidth - margin - 4, tableY + 5.8, { align: "right" });
+          tableY += 9;
+        });
+
+        const totalPages = pdf.getNumberOfPages();
+        for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+          pdf.setPage(pageNumber);
+          pdf.setDrawColor(230, 220, 222);
+          pdf.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8);
+          pdf.setTextColor(130, 115, 119);
+          pdf.text("Beauty Diary - Internal sales report", margin, pageHeight - 7);
+          pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin, pageHeight - 7, { align: "right" });
+        }
         pdf.save(`beauty-diary-sales-${this.selectedMenu === "Daily sales" ? this.selectedDate : this.selectedMonth}.pdf`);
       } catch (error) {
         console.error("PDF export failed:", error);

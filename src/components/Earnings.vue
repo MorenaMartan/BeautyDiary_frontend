@@ -82,14 +82,15 @@ export default {
       return this.employeesList.filter((e) => e.name === this.currentUser.name);
     },
     months() {
+      const currentMonth = new Date().toISOString().slice(0, 7);
       const employeeNames = this.visibleEmployees.map((emp) => emp.name);
-      const months = [...new Set(
+      const availableMonths = [...new Set(
         this.appointmentsList
           .filter((a) => this.isEarningAppointment(a) && employeeNames.includes(a.beautician))
           .map((a) => a.dayandhour.slice(0, 7)),
-      )].sort().reverse();
+      )].filter((month) => month !== currentMonth).sort().reverse();
 
-      return months.length ? months : [new Date().toISOString().slice(0, 7)];
+      return [currentMonth, ...availableMonths];
     },
     earnings() {
       const data = {};
@@ -142,9 +143,11 @@ export default {
       return this.appointmentEarnings(appointment) > 0;
     },
     appointmentEarnings(appointment) {
-      if (appointment.earningsAmount !== undefined) return Number(appointment.earningsAmount || 0);
       if (appointment.status === "completed") {
-        return Number(appointment.price || findTreatment(appointment.treatment)?.price || 0);
+        return Number(appointment.earningsAmount || appointment.price || findTreatment(appointment.treatment)?.price || 0);
+      }
+      if (appointment.status === "cancelled") {
+        return Number(appointment.cancellationFee || appointment.earningsAmount || 0);
       }
       return 0;
     },

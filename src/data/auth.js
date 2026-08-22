@@ -1,24 +1,28 @@
-export function getCurrentUser() {
-  const saved = localStorage.getItem("beautyDiaryUser");
-  if (saved) return JSON.parse(saved);
+let accessToken = "";
 
-  return null;
+export function getCurrentUser() {
+  try {
+    const saved = sessionStorage.getItem("beautyDiaryUser");
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function saveSession(user, token) {
-  localStorage.setItem("beautyDiaryUser", JSON.stringify(user));
-  localStorage.setItem("beautyDiaryToken", token);
+  sessionStorage.setItem("beautyDiaryUser", JSON.stringify(user));
+  accessToken = token || "";
 }
 
 export function getAccessToken() {
-  return localStorage.getItem("beautyDiaryToken") || "";
+  return accessToken;
 }
 
 export function saveAccessToken(token) {
-  localStorage.setItem("beautyDiaryToken", token);
+  accessToken = token || "";
 }
 
 export function logout() {
-  localStorage.removeItem("beautyDiaryUser");
-  localStorage.removeItem("beautyDiaryToken");
+  sessionStorage.removeItem("beautyDiaryUser");
+  accessToken = "";
 }

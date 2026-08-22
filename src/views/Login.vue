@@ -4,26 +4,25 @@
       <h1 class="title">Login</h1>
 
       <form class="form" @submit.prevent="handleLogin">
-        <input v-model="username" type="text" placeholder="Username" class="input" />
+        <input v-model.trim="username" type="text" placeholder="Username" class="input" required autocomplete="username" />
 
         <input
           v-model="password"
           type="password"
           placeholder="Password"
           class="input"
+          required
+          autocomplete="current-password"
         />
 
         <div v-if="error" class="text-danger small">{{ error }}</div>
 
-        <button class="btn">Log in</button>
+        <button class="btn" :disabled="isSubmitting">{{ isSubmitting ? "Logging in…" : "Log in" }}</button>
       </form>
       <p>
         Don't have an account?
         <router-link to="/signin">Sign in</router-link>
       </p>
-      <div class="small text-muted mt-2">
-        Admin: Tara/tara, Beautician: Luna/luna, Client: Petra/petra
-      </div>
     </div>
   </div>
 </template>
@@ -38,18 +37,22 @@ export default {
       username: "",
       password: "",
       error: "",
+      isSubmitting: false,
     };
   },
   methods: {
     async handleLogin() {
       this.error = "";
+      this.isSubmitting = true;
 
       try {
         const { user, token } = await api.login({ username: this.username, password: this.password });
         saveSession(user, token);
-        this.$router.push("/dashboard");
+        this.$router.push(this.$route.query.redirect || "/dashboard");
       } catch (error) {
         this.error = error.message || "Wrong username or password.";
+      } finally {
+        this.isSubmitting = false;
       }
     },
   },

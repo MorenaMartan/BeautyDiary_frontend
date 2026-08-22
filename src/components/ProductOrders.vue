@@ -1,8 +1,17 @@
 <template>
-  <div class="d-flex gap-3 p-3 flex-nowrap main-wrapper">
-    <div v-for="emp in visibleEmployees" :key="emp.name" class="card p-3 orders-card">
+  <div class="p-3">
+    <div v-if="errorMessage" class="alert alert-danger py-2 mb-3">{{ errorMessage }}</div>
+    <div v-if="loading" class="text-center py-5">Loading product orders...</div>
+    <div v-else-if="!employees.length" class="card empty-state">
+      There are no employee profiles available.
+    </div>
+    <div v-else class="d-flex gap-3 flex-nowrap main-wrapper">
+    <div v-for="emp in employees" :key="emp.id" class="card p-3 orders-card">
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <b>{{ emp.name }}</b>
+        <div>
+          <b>{{ employeeName(emp) }}</b>
+          <div class="employee-label">{{ emp.role }}</div>
+        </div>
         <button class="btn btn-sm btn-danger text-white" @click="addOrder(emp)">
           + Add order
         </button>
@@ -16,16 +25,14 @@
           v-model="order.text"
           class="form-control form-control-sm"
           :ref="`orderInput-${emp.name}-${index}`"
+          :disabled="order.checked"
+          placeholder="Enter a product..."
+          @blur="saveOrder(emp, index)"
+          @keyup.enter="$event.target.blur()"
         />
         <button
-          class="btn btn-sm btn-danger text-white"
-          :disabled="!order.text.trim()"
-          @click="addOrderAfter(emp, index)"
-        >
-          Add
-        </button>
-        <button
           class="btn btn-sm btn-outline-danger"
+          :disabled="order.checked"
           @click="deleteOrder(emp, index)"
         >
           Delete
@@ -35,17 +42,19 @@
           v-model="order.checked"
           type="checkbox"
           class="custom-checkbox"
+          :disabled="!order.text.trim()"
           @change="handleChecked(emp, index)"
         />
-        <span v-else-if="order.checked">✓</span>
+        <span v-else-if="order.checked" class="purchased-badge">✓ Purchased</span>
       </div>
+    </div>
     </div>
   </div>
 </template>
 
 <script>
-import { employeesData } from "@/data/employeesData";
 import { getCurrentUser } from "@/data/auth";
+import { api } from "@/services/api";
 
 export default {
   props: {
@@ -54,69 +63,87 @@ export default {
       default: () => getCurrentUser(),
     },
   },
-  computed: {
-    visibleEmployees() {
-      if (this.currentUser.role === "Admin") return employeesData;
-      return employeesData.filter((e) => e.name === this.currentUser.name);
-    },
+  data() {
+    return {
+      employees: [],
+      loading: true,
+      errorMessage: "",
+    };
   },
-  mounted() {
-    this.cleanupCheckedOrders();
+  async mounted() {
+    await this.cleanupCheckedOrders();
     this.cleanupInterval = setInterval(this.cleanupCheckedOrders, 60 * 60 * 1000);
   },
   beforeUnmount() {
     clearInterval(this.cleanupInterval);
   },
   methods: {
-    addOrder(emp) {
-      emp.productOrders.push({ text: "", checked: false });
-      this.focusOrderInput(emp, emp.productOrders.length - 1);
+    employeeName(employee) {
+      return [employee.name, employee.surname].filter(Boolean).join(" ");
     },
-    addOrderAfter(emp, index) {
-      const orders = emp.productOrders;
-      const order = orders[index];
-      if (!order?.text.trim()) return;
-
-      const nextOrder = orders[index + 1];
-      if (!nextOrder || nextOrder.text.trim()) {
-        orders.splice(index + 1, 0, { text: "", checked: false });
-      }
-
-      this.focusOrderInput(emp, index + 1);
-    },
-    deleteOrder(emp, index) {
-      emp.productOrders.splice(index, 1);
-
-      if (!emp.productOrders.length) {
-        emp.productOrders.push({ text: "", checked: false });
+    async loadOrders() {
+      this.loading = true;
+      this.errorMessage = "";
+      try {
+        this.employees = await api.getProductOrders();
+      } catch (error) {
+        this.errorMessage = error.message;
+      } finally {
+        this.loading = false;
       }
     },
-    handleChecked(emp, index) {
+    async addOrder(emp) {
+      this.errorMessage = "";
+      try {
+        const order = await api.createProductOrder(emp.id, "");
+        emp.productOrders.push(order);
+        this.focusOrderInput(emp, emp.productOrders.length - 1);
+      } catch (error) {
+        this.errorMessage = error.message;
+      }
+    },
+    async saveOrder(emp, index) {
+      const order = emp.productOrders[index];
+      if (!order || order.checked || !order.text.trim()) return;
+      this.errorMessage = "";
+      try {
+        await api.updateProductOrder(emp.id, index, { text: order.text.trim() });
+        order.text = order.text.trim();
+      } catch (error) {
+        this.errorMessage = error.message;
+        await this.loadOrders();
+      }
+    },
+    async deleteOrder(emp, index) {
+      this.errorMessage = "";
+      try {
+        await api.deleteProductOrder(emp.id, index);
+        await this.loadOrders();
+      } catch (error) {
+        this.errorMessage = error.message;
+      }
+    },
+    async handleChecked(emp, index) {
       const order = emp.productOrders[index];
       if (!order) return;
-
-      if (order.checked) {
-        order.checkedAt = new Date().toISOString();
-      } else {
-        delete order.checkedAt;
+      this.errorMessage = "";
+      try {
+        const savedOrder = await api.updateProductOrder(emp.id, index, {
+          checked: order.checked,
+        });
+        Object.assign(order, savedOrder);
+      } catch (error) {
+        this.errorMessage = error.message;
+        await this.loadOrders();
       }
     },
-    cleanupCheckedOrders() {
-      const threeDays = 3 * 24 * 60 * 60 * 1000;
-      const now = new Date();
-
-      employeesData.forEach((emp) => {
-        emp.productOrders = emp.productOrders.filter((order) => {
-          if (!order.checked) return true;
-          if (!order.checkedAt) return true;
-
-          return now - new Date(order.checkedAt) < threeDays;
-        });
-
-        if (!emp.productOrders.length) {
-          emp.productOrders.push({ text: "", checked: false });
-        }
-      });
+    async cleanupCheckedOrders() {
+      try {
+        if (this.currentUser.role === "Admin") await api.cleanupProductOrders();
+      } catch (error) {
+        this.errorMessage = error.message;
+      }
+      await this.loadOrders();
     },
     focusOrderInput(emp, index) {
       this.$nextTick(() => {
@@ -150,5 +177,20 @@ export default {
   width: 18px;
   height: 18px;
   accent-color: #8b0000;
+}
+.employee-label {
+  color: #777;
+  font-size: 0.75rem;
+}
+.purchased-badge {
+  color: #198754;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: #666;
 }
 </style>

@@ -2,7 +2,9 @@
   <div class="calendar-container">
     <div v-if="currentUser.role === 'Client'" class="card p-3 mb-3 client-info-card">
       <div class="fw-bold">Beauty points: {{ beautyPoints }}</div>
-      <div v-if="beautyPoints >= 10">10% discount available for next treatment.</div>
+      <div v-if="beautyPoints >= loyaltySettings.pointsRequired">
+        {{ loyaltySettings.discountPercentage }}% discount available for the next treatment.
+      </div>
     </div>
 
     <div class="calendar-date-controls mb-3">
@@ -128,15 +130,21 @@
           </div>
 
           <div v-if="canManageSelectedAppointment" class="appointment-actions">
-            <button class="btn btn-sm btn-danger text-white" @click="completeAppointment">
+            <button class="btn btn-sm btn-danger text-white" :disabled="!canSetAttendanceStatus" @click="completeAppointment">
               Mark as completed
             </button>
-            <button class="btn btn-sm btn-outline-danger" @click="markNoShow">
+            <button class="btn btn-sm btn-outline-danger" :disabled="!canSetAttendanceStatus" @click="markNoShow">
               Client did not come
             </button>
-            <button class="btn btn-sm btn-outline-danger" @click="cancelSelectedAppointment">
+            <button class="btn btn-sm btn-outline-danger" :disabled="!canCancelSelectedAppointment" @click="cancelSelectedAppointment">
               Cancel appointment
             </button>
+            <div v-if="!canSetAttendanceStatus" class="small text-muted w-100">
+              Completion and no-show are available after the appointment starts.
+            </div>
+            <div v-else-if="!canCancelSelectedAppointment" class="small text-muted w-100">
+              Appointments cannot be cancelled after they have started.
+            </div>
           </div>
 
           <div v-else-if="currentUser.role !== 'Client'" class="status-note">
@@ -214,6 +222,12 @@ export default {
       employeesList: localEmployees,
       appointmentsList: localAppointments,
       treatmentsList: localTreatments,
+      loyaltySettings: {
+        eurosSpent: 15,
+        pointsEarned: 1,
+        pointsRequired: 10,
+        discountPercentage: 10,
+      },
       showModal: false,
       selectedAppointment: null,
       selectedEmployee: "",
@@ -241,7 +255,10 @@ export default {
       return this.clientsList.find((c) => c.id === this.currentUser.id) || this.clientsList[0];
     },
     beautyPoints() {
-      return Math.floor((this.client?.wallet || 0) / 20) - (this.client?.spentBeautyPoints || 0);
+      const earned =
+        Math.floor((this.client?.wallet || 0) / this.loyaltySettings.eurosSpent) *
+        this.loyaltySettings.pointsEarned;
+      return Math.max(0, earned - (this.client?.spentBeautyPoints || 0));
     },
     allowedTreatments() {
       const emp = this.employeesMap[this.selectedEmployee];
@@ -289,6 +306,14 @@ export default {
       );
     },
 
+    canSetAttendanceStatus() {
+      return this.appointmentStartDate(this.selectedAppointment) <= new Date();
+    },
+
+    canCancelSelectedAppointment() {
+      return this.appointmentStartDate(this.selectedAppointment) > new Date();
+    },
+
     formattedDate() {
       const options = {
         weekday: "long",
@@ -318,7 +343,10 @@ export default {
     },
 
     currentDateKey() {
-      return this.currentDate.toISOString().split("T")[0];
+      const year = this.currentDate.getFullYear();
+      const month = String(this.currentDate.getMonth() + 1).padStart(2, "0");
+      const day = String(this.currentDate.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
     },
 
     times() {
@@ -337,17 +365,19 @@ export default {
   methods: {
     async loadData() {
       try {
-        const [clients, employees, appointments, treatments] = await Promise.all([
+        const [clients, employees, appointments, treatments, loyaltySettings] = await Promise.all([
           api.getClients(),
           api.getEmployees(),
           api.getAppointments(),
           api.getTreatments(),
+          api.getLoyaltySettings(),
         ]);
 
         this.clientsList = clients;
         this.employeesList = employees;
         this.appointmentsList = appointments;
         this.treatmentsList = treatments;
+        this.loyaltySettings = loyaltySettings;
       } catch (error) {
         console.error(error);
       }
@@ -423,7 +453,7 @@ export default {
     },
 
     async openModal(employee, time) {
-      if (this.isBooked(employee, time)) return;
+      if (!this.isAvailable(employee, time)) return;
       this.selectedAppointment = null;
       try {
         this.clientsList = await api.getClients();
@@ -460,6 +490,12 @@ export default {
     },
 
     async saveAppointment() {
+      if (this.isPastSlot(this.selectedTime)) {
+        alert("Appointments can be booked only in the future.");
+        this.closeModal();
+        return;
+      }
+
       if (this.currentUser.role !== "Client") {
         if (!this.selectedClient) {
           alert("Please choose an existing client from the list.");
@@ -549,6 +585,7 @@ export default {
 
     async completeAppointment() {
       const appointment = this.selectedAppointment;
+      if (!this.canSetAttendanceStatus) return;
       const price = this.appointmentBasePrice(appointment);
       await this.updateAppointmentStatus(appointment, {
         status: "completed",
@@ -557,6 +594,7 @@ export default {
     },
 
     async markNoShow() {
+      if (!this.canSetAttendanceStatus) return;
       await this.updateAppointmentStatus(this.selectedAppointment, {
         status: "no_show",
         earningsAmount: 0,
@@ -565,18 +603,17 @@ export default {
 
     async cancelSelectedAppointment() {
       const appointment = this.selectedAppointment;
-      const hoursUntilAppointment =
-        (this.appointmentStartDate(appointment) - new Date()) / (60 * 60 * 1000);
+      if (!this.canCancelSelectedAppointment) return;
 
-      if (hoursUntilAppointment > 24) {
-        await this.deleteSelectedAppointment(appointment);
-        return;
+      try {
+        const cancelledAppointment = await api.cancelAppointment(appointment.id);
+        const index = this.appointmentsList.findIndex((item) => this.isSameAppointment(item, appointment));
+        if (index !== -1) this.appointmentsList.splice(index, 1, cancelledAppointment);
+        this.selectedAppointment = cancelledAppointment;
+        await this.loadAppointments();
+      } catch (error) {
+        alert(error.message);
       }
-
-      await this.updateAppointmentStatus(appointment, {
-        status: "cancelled",
-        earningsAmount: this.appointmentBasePrice(appointment) / 2,
-      });
     },
 
     async updateAppointmentStatus(appointment, data) {
@@ -633,7 +670,7 @@ export default {
       const end = start + Number(candidate.duration || 60);
 
       return this.appointmentsList.some((appointment) => {
-        if (appointment.status === "cancelled" && !Number(appointment.earningsAmount)) return false;
+        if (appointment.status === "cancelled") return false;
         if (
           appointment.client_name !== candidate.client_name ||
           appointment.client_surname !== candidate.client_surname
@@ -651,9 +688,10 @@ export default {
     getCellData(employee, time) {
       const appointment = this.getAppointmentAt(employee, time);
       if (appointment) {
-        if (this.currentUser.role === "Client") return "";
-
         const startTime = appointment.dayandhour.split(" ")[1];
+        if (this.currentUser.role === "Client") {
+          return startTime === time ? "Booked appointment" : "";
+        }
         if (startTime !== time) return this.appointmentStatusLabel(appointment);
 
         return `${this.appointmentStatusLabel(appointment)}: ${appointment.treatment} - ${appointment.client_name} ${appointment.client_surname}`;
@@ -667,34 +705,40 @@ export default {
     },
 
     isAvailable(employee, time) {
-      return this.isWithinWorkHours(employee, time) && !this.isBooked(employee, time);
+      return !this.isPastSlot(time) && this.isWithinWorkHours(employee, time) && !this.isBooked(employee, time);
     },
 
     getCellClass(employee, time) {
       const appointment = this.getAppointmentAt(employee, time);
       if (appointment && this.currentUser.role === "Client" && !this.canViewAppointmentDetails(appointment)) {
-        return "cell-unavailable";
+        return "cell-booked";
       }
       if (appointment) return `cell-${appointment.status || "booked"}`;
-      if (this.isWithinWorkHours(employee, time)) return "cell-available";
+      if (this.isAvailable(employee, time)) return "cell-available";
       return "cell-unavailable";
     },
 
     getCellTitle(employee, time) {
       const appointment = this.getAppointmentAt(employee, time);
       if (appointment && this.currentUser.role === "Client" && !this.canViewAppointmentDetails(appointment)) {
-        return "Unavailable";
+        return "Booked appointment";
       }
       if (appointment) return this.appointmentStatusLabel(appointment);
+      if (this.isPastSlot(time)) return "Past appointments cannot be booked";
       if (this.isWithinWorkHours(employee, time)) return "Available appointment";
       return "Beautician is not working";
+    },
+
+    isPastSlot(time) {
+      const startsAt = new Date(`${this.currentDateKey}T${time}:00`);
+      return Number.isNaN(startsAt.getTime()) || startsAt <= new Date();
     },
 
     getAppointmentAt(employee, time) {
       const targetMinutes = this.toMinutes(time);
 
       return this.appointmentsList.find((a) => {
-        if (a.status === "cancelled" && !Number(a.earningsAmount)) return false;
+        if (a.status === "cancelled") return false;
         if (a.beautician !== employee) return false;
 
         const [date, startTime] = a.dayandhour.split(" ");

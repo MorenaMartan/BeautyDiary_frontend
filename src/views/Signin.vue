@@ -4,26 +4,26 @@
       <h1 class="title">Sign In</h1>
 
       <form class="form" @submit.prevent="signIn">
-        <input v-model="form.name" type="text" placeholder="First name" class="input" />
+        <input v-model.trim="form.name" type="text" placeholder="First name" class="input" required autocomplete="given-name" />
 
-        <input v-model="form.surname" type="text" placeholder="Last name" class="input" />
+        <input v-model.trim="form.surname" type="text" placeholder="Last name" class="input" required autocomplete="family-name" />
 
-        <input v-model="form.email" type="email" placeholder="Email" class="input" />
+        <input v-model.trim="form.email" type="email" placeholder="Email" class="input" required autocomplete="email" />
 
         <input
           v-model="form.password"
           type="password"
           placeholder="Password"
           class="input"
+          required
+          minlength="8"
+          autocomplete="new-password"
         />
 
-        <input v-model="form.mobile" type="phone" placeholder="Phone" class="input" />
+        <input v-model.trim="form.mobile" type="tel" placeholder="Phone" class="input" autocomplete="tel" />
 
-        <select v-model="form.role" class="input">
-          <option value="Client">Client</option>
-        </select>
-
-        <button class="btn">Sign in</button>
+        <button class="btn" :disabled="isSubmitting">{{ isSubmitting ? "Creating account…" : "Sign up" }}</button>
+        <div v-if="error" class="text-danger small">{{ error }}</div>
       </form>
     </div>
   </div>
@@ -42,22 +42,26 @@ export default {
         email: "",
         password: "",
         mobile: "",
-        role: "Client",
       },
+      error: "",
+      isSubmitting: false,
     };
   },
   methods: {
     async signIn() {
+      this.error = "";
+      this.isSubmitting = true;
       try {
         const { user, token } = await api.signup({
           ...this.form,
           username: this.form.name,
-          password: this.form.password || this.form.name.toLowerCase(),
         });
         saveSession(user, token);
         this.$router.push("/dashboard");
       } catch (error) {
-        alert(error.message);
+        this.error = error.message || "Unable to create the account.";
+      } finally {
+        this.isSubmitting = false;
       }
     },
   },

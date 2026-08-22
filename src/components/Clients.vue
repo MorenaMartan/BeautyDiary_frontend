@@ -25,17 +25,19 @@
       </div>
 
       <div v-if="selectedClient" class="card level2-card p-3 flex-shrink-0">
-        <div class="d-flex justify-content-between mb-2">
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
           <b>Client details</b>
-          <button
-            class="btn btn-sm btn-outline-danger"
-            @click="toggleEdit"
-          >
-            {{ editMode ? "Save" : "Edit" }}
-          </button>
-          <button class="btn btn-sm btn-outline-secondary ms-2" @click="downloadTreatmentHistory">
-            Export history PDF
-          </button>
+          <div class="client-actions">
+            <button
+              class="btn btn-sm btn-outline-danger edit-client-button"
+              @click="toggleEdit"
+            >
+              {{ editMode ? "Save" : "Edit" }}
+            </button>
+            <button class="btn btn-sm btn-outline-secondary export-pdf-button" @click="downloadTreatmentHistory">
+              Export PDF
+            </button>
+          </div>
         </div>
 
         <div class="mb-1">
@@ -100,8 +102,8 @@
 
         <div>
           <b>Beauty points:</b> {{ beautyPoints }} ⭐
-          <div v-if="beautyPoints >= 10" class="text-success">
-            10% discount available
+          <div v-if="beautyPoints >= loyaltySettings.pointsRequired" class="text-success">
+            {{ loyaltySettings.discountPercentage }}% discount available
           </div>
         </div>
       </div>
@@ -199,6 +201,12 @@ export default {
       editMode: false,
       clientsList: clients,
       appointmentsList: appointments,
+      loyaltySettings: {
+        eurosSpent: 15,
+        pointsEarned: 1,
+        pointsRequired: 10,
+        discountPercentage: 10,
+      },
     };
   },
   computed: {
@@ -239,7 +247,10 @@ export default {
     },
     beautyPoints() {
       if (!this.selectedClient) return 0;
-      return Math.floor(this.selectedClient.wallet / 20) - (this.selectedClient.spentBeautyPoints || 0);
+      const earned =
+        Math.floor((this.selectedClient.wallet || 0) / this.loyaltySettings.eurosSpent) *
+        this.loyaltySettings.pointsEarned;
+      return Math.max(0, earned - (this.selectedClient.spentBeautyPoints || 0));
     },
   },
   methods: {
@@ -293,47 +304,178 @@ export default {
       const clientName = `${this.selectedClient.name} ${this.selectedClient.surname}`.trim();
       const rows = this.pastAppointments.length ? this.pastAppointments : this.clientAppointments;
 
-      pdf.setFillColor(139, 0, 0);
-      pdf.rect(0, 0, 210, 8, "F");
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(24);
-      pdf.setTextColor(139, 0, 0);
-      pdf.text("Beauty Diary", 15, 24);
-      pdf.setFontSize(16);
-      pdf.setTextColor(43, 37, 37);
-      pdf.text("Client treatment history", 15, 37);
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(11);
-      pdf.text(`Client: ${clientName}`, 15, 47);
-      pdf.text(`Generated: ${new Date().toLocaleDateString("hr-HR")}`, 15, 54);
-      pdf.setDrawColor(139, 0, 0);
-      pdf.line(15, 60, 195, 60);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const columns = [
+        { label: "#", x: 17, width: 8 },
+        { label: "DATE & TIME", x: 27, width: 33 },
+        { label: "TREATMENT", x: 62, width: 42 },
+        { label: "BEAUTICIAN", x: 106, width: 30 },
+        { label: "STATUS", x: 138, width: 28 },
+        { label: "PRICE", x: 194, align: "right" },
+      ];
+      const totalValue = rows
+        .filter((appointment) => appointment.status === "completed")
+        .reduce((total, appointment) => total + Number(appointment.price || 0), 0);
+      const completed = rows.filter((appointment) => appointment.status === "completed").length;
+      const cancelled = rows.filter((appointment) => appointment.status === "cancelled").length;
 
-      let y = 70;
+      const drawHeader = () => {
+        pdf.setFillColor(112, 18, 42);
+        pdf.rect(0, 0, pageWidth, 31, "F");
+        pdf.setFillColor(255, 255, 255);
+        pdf.circle(margin + 6, 15.5, 6, "F");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8);
+        pdf.setTextColor(112, 18, 42);
+        pdf.text("BD", margin + 6, 17.5, { align: "center" });
+        pdf.setFontSize(22);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text("Beauty Diary", margin + 16, 18);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        pdf.text("CLIENT CARE RECORD", margin + 16, 25);
+        pdf.setTextColor(112, 18, 42);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.text("Client treatment history", margin, 43);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        pdf.setTextColor(99, 85, 88);
+        pdf.text(`Generated ${new Date().toLocaleString("hr-HR", { dateStyle: "medium", timeStyle: "short" })}`, pageWidth - margin, 40, { align: "right" });
+        pdf.text(`Document ID: CLIENT-${this.selectedClient.id}`, pageWidth - margin, 45, { align: "right" });
+      };
+
+      const drawFooter = (pageNumber, totalPages) => {
+        pdf.setDrawColor(230, 220, 222);
+        pdf.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+        pdf.setFontSize(8);
+        pdf.setTextColor(130, 115, 119);
+        pdf.text("Beauty Diary - Confidential client record", margin, pageHeight - 9);
+        pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin, pageHeight - 9, { align: "right" });
+      };
+
+      const drawTableHeader = (y) => {
+        pdf.setFillColor(248, 235, 238);
+        pdf.rect(margin, y, pageWidth - margin * 2, 9, "F");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8);
+        pdf.setTextColor(112, 18, 42);
+        columns.forEach((column) => pdf.text(column.label, column.x, y + 5.8, { align: column.align || "left" }));
+        return y + 9;
+      };
+
+      drawHeader();
+      pdf.setFillColor(255, 249, 250);
+      pdf.roundedRect(margin, 50, pageWidth - margin * 2, 27, 3, 3, "F");
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(7);
+      pdf.setTextColor(112, 18, 42);
+      pdf.text("CLIENT", margin + 6, 56);
+      pdf.setFontSize(12);
+      pdf.setTextColor(43, 37, 37);
+      pdf.text(clientName, margin + 6, 63);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(99, 85, 88);
+      pdf.text(`Email: ${this.selectedClient.email || "Not provided"}`, margin + 6, 70);
+      pdf.text(`Mobile: ${this.selectedClient.mobile || "Not provided"}`, pageWidth - margin - 6, 63, { align: "right" });
+      pdf.setFontSize(7.5);
+      pdf.text(`Client ID: ${this.selectedClient.id}`, margin + 6, 75);
+      pdf.text(
+        `Birthday: ${this.selectedClient.birthday || "Not provided"}`,
+        pageWidth - margin - 6,
+        70,
+        { align: "right" },
+      );
+
+      const summary = [
+        ["APPOINTMENTS", rows.length],
+        ["COMPLETED", completed],
+        ["CANCELLED", cancelled],
+        ["TOTAL VALUE", `${totalValue.toFixed(2)} €`],
+      ];
+      summary.forEach(([label, value], index) => {
+        const x = margin + index * 45.2;
+        pdf.setFillColor(250, 240, 243);
+        pdf.roundedRect(x, 83, 42, 18, 2, 2, "F");
+        pdf.setFillColor(112, 18, 42);
+        pdf.rect(x, 83, 2, 18, "F");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(7);
+        pdf.setTextColor(112, 18, 42);
+        pdf.text(label, x + 4, 89);
+        pdf.setFontSize(12);
+        pdf.setTextColor(43, 37, 37);
+        pdf.text(String(value), x + 4, 96.5);
+      });
+
+      let y = drawTableHeader(109);
       if (!rows.length) {
-        pdf.setTextColor(111, 99, 99);
-        pdf.text("No treatment history is available for this client.", 15, y);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        pdf.setTextColor(130, 115, 119);
+        pdf.text("No treatment history is available for this client.", margin, y + 12);
       } else {
         rows.forEach((appointment, index) => {
-          if (y > 270) {
+          const treatmentLines = pdf.splitTextToSize(appointment.treatment || "-", columns[2].width);
+          const beauticianLines = pdf.splitTextToSize(appointment.beautician || "-", columns[3].width);
+          const rowHeight = Math.max(11, Math.max(treatmentLines.length, beauticianLines.length) * 4 + 5);
+
+          if (y + rowHeight > pageHeight - 22) {
             pdf.addPage();
-            y = 20;
+            drawHeader();
+            y = drawTableHeader(54);
           }
+
+          if (index % 2 === 0) {
+            pdf.setFillColor(253, 248, 249);
+            pdf.rect(margin, y, pageWidth - margin * 2, rowHeight, "F");
+          }
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8.5);
+          pdf.setTextColor(43, 37, 37);
+          pdf.text(String(index + 1), columns[0].x, y + 6.4);
+          pdf.text(this.formatPdfDate(appointment.dayandhour), columns[1].x, y + 6.4);
+          pdf.text(treatmentLines, columns[2].x, y + 6.4);
+          pdf.text(beauticianLines, columns[3].x, y + 6.4);
+          const statusColors = {
+            completed: [37, 125, 78],
+            cancelled: [170, 45, 65],
+            no_show: [139, 94, 20],
+            booked: [51, 94, 145],
+          };
+          pdf.setTextColor(...(statusColors[appointment.status] || statusColors.booked));
           pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(11);
-          pdf.setTextColor(139, 0, 0);
-          pdf.text(`${index + 1}. ${appointment.treatment}`, 15, y);
+          pdf.text(this.pdfStatusLabel(appointment.status), columns[4].x, y + 6.4);
           pdf.setFont("helvetica", "normal");
           pdf.setTextColor(43, 37, 37);
-          pdf.text(`Date: ${appointment.dayandhour}`, 20, y + 7);
-          pdf.text(`Beautician: ${appointment.beautician}`, 20, y + 14);
-          pdf.text(`Status: ${appointment.status || "booked"}`, 20, y + 21);
-          pdf.setDrawColor(234, 218, 218);
-          pdf.line(15, y + 26, 195, y + 26);
-          y += 34;
+          pdf.text(`${Number(appointment.price || 0).toFixed(2)} €`, columns[5].x, y + 6.4, { align: "right" });
+          pdf.setDrawColor(238, 228, 230);
+          pdf.line(margin, y + rowHeight, pageWidth - margin, y + rowHeight);
+          y += rowHeight;
         });
       }
-      pdf.save(`beauty-diary-treatment-history-${this.selectedClient.name}-${this.selectedClient.surname}.pdf`);
+      const totalPages = pdf.getNumberOfPages();
+      for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+        pdf.setPage(pageNumber);
+        drawFooter(pageNumber, totalPages);
+      }
+      const safeClientName = clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      pdf.save(`beauty-diary-client-${safeClientName || this.selectedClient.id}.pdf`);
+    },
+    formatPdfDate(dayandhour) {
+      const date = new Date(dayandhour.replace(" ", "T"));
+      return Number.isNaN(date.getTime()) ? dayandhour : date.toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
+    },
+    pdfStatusLabel(status) {
+      return {
+        booked: "Booked",
+        completed: "Completed",
+        cancelled: "Cancelled",
+        no_show: "No-show",
+      }[status || "booked"] || "Booked";
     },
     toggleLevel3(name) {
       this.activeLevel3 = this.activeLevel3 === name ? null : name;
@@ -341,12 +483,14 @@ export default {
   },
   async mounted() {
     try {
-      const [savedClients, savedAppointments] = await Promise.all([
+      const [savedClients, savedAppointments, loyaltySettings] = await Promise.all([
         api.getClients(),
         api.getAppointments(),
+        api.getLoyaltySettings(),
       ]);
       this.clientsList = savedClients;
       this.appointmentsList = savedAppointments;
+      this.loyaltySettings = loyaltySettings;
     } catch (error) {
       console.error(error);
       if (import.meta.env.DEV) {
@@ -393,6 +537,22 @@ export default {
 /* LIST ITEM */
 .list-group-item {
   cursor: pointer;
+}
+
+.client-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.edit-client-button {
+  min-width: 58px;
+  border-radius: 999px;
+}
+
+.export-pdf-button {
+  border-radius: 999px;
 }
 
 .text-danger {
