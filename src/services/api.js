@@ -1,4 +1,4 @@
-import { getAccessToken, logout, saveAccessToken } from "@/data/auth";
+import { getAccessToken, getCurrentUser, logout, saveSession } from "@/data/auth";
 
 const ENV_API_URL = import.meta.env.VITE_API_URL?.trim();
 const API_URL = (ENV_API_URL || (import.meta.env.DEV ? "/api" : "")).replace(/\/$/, "");
@@ -14,8 +14,12 @@ async function refreshAccessToken() {
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("Session expired");
-        const { token } = await response.json();
-        saveAccessToken(token);
+        const { user, token } = await response.json();
+        const previousUser = getCurrentUser();
+        saveSession(user, token);
+        if (previousUser?.role && previousUser.role !== user.role) {
+          window.location.reload();
+        }
       })
       .finally(() => {
         refreshPromise = null;
@@ -104,6 +108,7 @@ export const api = {
   getClientStats: () => request("/clients/stats"),
   createClient: (data) => request("/clients", { method: "POST", body: JSON.stringify(data) }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteClient: (id) => request(`/clients/${id}`, { method: "DELETE" }),
 
   getEmployees: () => request("/employees"),
   createEmployee: (data) =>
@@ -118,6 +123,11 @@ export const api = {
     }),
   updateEmployeeProfile: (id, data) =>
     request(`/employees/${id}/profile`, { method: "PATCH", body: JSON.stringify(data) }),
+  updateEmployeeTreatments: (id, treatments) =>
+    request(`/employees/${id}/treatments`, {
+      method: "PATCH",
+      body: JSON.stringify({ treatments }),
+    }),
   updateEmployeeSchedule: (id, schedule) =>
     request(`/employees/${id}/schedule`, {
       method: "PATCH",
@@ -183,6 +193,8 @@ export const api = {
       method: "DELETE",
     }),
   getAppointments: () => request("/appointments"),
+  getAppointmentAvailability: (date, treatment) =>
+    request(`/appointments/availability?date=${encodeURIComponent(date)}&treatment=${encodeURIComponent(treatment)}`),
   createAppointment: (data) => request("/appointments", { method: "POST", body: JSON.stringify(data) }),
   updateAppointment: (id, data) =>
     request(`/appointments/${id}`, { method: "PATCH", body: JSON.stringify(data) }),

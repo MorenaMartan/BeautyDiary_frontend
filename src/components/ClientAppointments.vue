@@ -2,29 +2,39 @@
   <div class="clients-wrapper p-3 main-wrapper">
     <div v-if="mode === 'list'" class="d-flex gap-3 flex-nowrap h-100">
       <div class="card level1-card p-2 flex-shrink-0">
-        <div class="fw-bold mb-2">Treatments</div>
+        <div class="fw-bold px-2 pt-1 mb-2">Service price list</div>
+        <div class="price-list-header">
+          <span>Service</span>
+          <span>Duration</span>
+          <span>Price</span>
+        </div>
         <div
           v-for="t in treatmentsList"
           :key="t.name"
-          class="list-group-item list-group-item-action"
-          @click="selectedTreatment = t.name"
+          class="price-list-row"
         >
-          {{ t.name }} - {{ t.price }} €
+          <span class="treatment-name">{{ t.name }}</span>
+          <span class="treatment-duration">{{ t.duration }} min</span>
+          <span class="treatment-price">{{ t.price }} €</span>
         </div>
-        <hr />
-        <div><b>Beauty points:</b> {{ beautyPoints }}</div>
-        <div class="small text-muted mt-1">
-          {{ loyaltySettings.pointsRequired }} points = {{ loyaltySettings.discountPercentage }}% discount
-        </div>
-        <button
-          class="btn btn-sm btn-danger text-white mt-2 w-100"
-          :disabled="!canRedeemBeautyPoints"
-          @click="startBeautyPointsBooking"
-        >
-          Book with Beauty Points
-        </button>
-        <div v-if="!canRedeemBeautyPoints" class="small text-muted mt-1">
-          You need {{ loyaltySettings.pointsRequired }} points to use the discount.
+        <div class="treatments-points-box mt-3">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <b>Beauty points</b>
+            <span class="points-badge">{{ beautyPoints }}</span>
+          </div>
+          <div class="small text-muted mt-1">
+            {{ loyaltySettings.pointsRequired }} points = {{ loyaltySettings.discountPercentage }}% discount
+          </div>
+          <button
+            class="btn btn-sm btn-danger text-white mt-2 w-100"
+            :disabled="!canRedeemBeautyPoints"
+            @click="startBeautyPointsBooking"
+          >
+            Book with Beauty Points
+          </button>
+          <div v-if="!canRedeemBeautyPoints" class="small text-muted mt-1">
+            You need {{ loyaltySettings.pointsRequired }} points to use the discount.
+          </div>
         </div>
       </div>
 
@@ -86,32 +96,29 @@
 
     <div v-else class="d-flex gap-3 flex-nowrap h-100">
       <div class="card new-treatment-card p-3 flex-shrink-0">
-        <b class="mb-3">New treatment</b>
+        <b class="new-treatment-title">New treatment</b>
 
-        <label class="form-label fw-bold mb-1">Treatment</label>
-        <select v-model="selectedTreatment" class="form-select form-select-sm mb-2">
-          <option v-for="t in treatmentsList" :key="t.name" :value="t.name">
-            {{ t.name }} - {{ t.price }} € / {{ t.duration }} min
-          </option>
-        </select>
-
-        <div class="beauty-points-box mb-3">
-          <div><b>Beauty points:</b> {{ beautyPoints }}</div>
-          <div class="small text-muted">
-            Use {{ loyaltySettings.pointsRequired }} points for a
-            {{ loyaltySettings.discountPercentage }}% discount.
+        <div class="beauty-points-box">
+          <div class="d-flex align-items-start justify-content-between gap-3">
+            <div>
+              <div><b>Beauty points:</b> {{ beautyPoints }}</div>
+              <div class="small text-muted">
+                Use {{ loyaltySettings.pointsRequired }} points for a
+                {{ loyaltySettings.discountPercentage }}% discount.
+              </div>
+            </div>
+            <button
+              class="btn btn-sm flex-shrink-0"
+              :class="useBeautyPoints ? 'btn-danger text-white' : 'btn-outline-danger'"
+              :disabled="!canRedeemBeautyPoints"
+              @click="useBeautyPoints = !useBeautyPoints"
+            >
+              {{ useBeautyPoints ? "Discount selected" : "Use points" }}
+            </button>
           </div>
           <div class="small text-muted mt-1">
             Points are deducted when the booking is confirmed. A discounted treatment does not earn new points.
           </div>
-          <button
-            class="btn btn-sm mt-2"
-            :class="useBeautyPoints ? 'btn-danger text-white' : 'btn-outline-danger'"
-            :disabled="!canRedeemBeautyPoints"
-            @click="useBeautyPoints = !useBeautyPoints"
-          >
-            {{ useBeautyPoints ? "Discount selected" : "Use Beauty Points" }}
-          </button>
           <div v-if="useBeautyPoints && selectedTreatmentData" class="small mt-2">
             Price:
             <span class="text-decoration-line-through me-1">{{ selectedTreatmentData.price }} €</span>
@@ -119,35 +126,51 @@
           </div>
         </div>
 
+        <label class="form-label fw-bold mb-1">Treatment</label>
+        <select v-model="selectedTreatment" class="form-select form-select-sm field-control">
+          <option v-for="t in treatmentsList" :key="t.name" :value="t.name">
+            {{ t.name }} - {{ t.price }} € / {{ t.duration }} min
+          </option>
+        </select>
+
         <label class="form-label fw-bold mb-1">Date</label>
         <input
           v-model="selectedDate"
           type="date"
-          class="form-control form-control-sm mb-2"
+          class="form-control form-control-sm field-control"
           :min="todayDate"
         />
 
-        <label class="form-label fw-bold mb-1">Beautician</label>
-        <select v-model="selectedBeautician" class="form-select form-select-sm mb-2">
-          <option v-for="b in availableBeauticians" :key="b.name" :value="b.name">
-            {{ b.name }}
-          </option>
-        </select>
-
-        <label class="form-label fw-bold mb-1">Available time</label>
-        <select v-model="selectedTime" class="form-select form-select-sm mb-2">
+        <label class="form-label fw-bold mb-1">Time</label>
+        <select
+          v-model="selectedTime"
+          class="form-select form-select-sm field-control"
+          :disabled="!selectedBeautician || availabilityLoading || !availableTimes.length"
+        >
+          <option value="" disabled>Select available time</option>
           <option v-for="t in availableTimes" :key="t" :value="t">{{ t }}</option>
         </select>
 
-        <div v-if="!availableBeauticians.length" class="small text-muted mb-2">
-          No beautician is available for this treatment.
+        <label class="form-label fw-bold mb-1">Beautician</label>
+        <select v-model="selectedBeautician" class="form-select form-select-sm field-control">
+          <option value="" disabled>Select beautician</option>
+          <option v-for="b in availableBeauticians" :key="b.beautician" :value="b.beautician">
+            {{ b.beautician }}
+          </option>
+        </select>
+
+        <div v-if="availabilityLoading" class="availability-message small text-muted">
+          Loading available appointments...
         </div>
-        <div v-else-if="!availableTimes.length" class="small text-muted mb-2">
+        <div v-else-if="!availableBeauticians.length" class="availability-message small text-muted">
+          No beautician is available for this treatment on the selected date.
+        </div>
+        <div v-else-if="!availableTimes.length" class="availability-message small text-muted">
           No free time for this date.
         </div>
 
         <button
-          class="btn btn-danger text-white mt-2"
+          class="btn btn-danger text-white book-button"
           :disabled="!selectedBeautician || !selectedTime"
           @click="bookAppointment"
         >
@@ -188,6 +211,9 @@ export default {
       selectedDate: new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10),
       selectedBeautician: "",
       selectedTime: "",
+      availabilityList: [],
+      availabilityLoading: false,
+      availabilityRequestId: 0,
       useBeautyPoints: false,
       loyaltySettings: {
         eurosSpent: 15,
@@ -246,36 +272,18 @@ export default {
       return this.treatmentsList.find((t) => t.name === this.selectedTreatment) || this.treatmentsList[0];
     },
     availableBeauticians() {
-      const specialty = this.selectedTreatmentData?.specialty;
-      if (!specialty) return [];
-
-      return this.employeesList.filter((employee) => employee.specialties?.includes(specialty));
+      return this.availabilityList.filter((item) => item.times?.length);
     },
     availableTimes() {
-      const emp = this.employeesList.find((e) => e.name === this.selectedBeautician);
-      if (!emp || !this.selectedTreatmentData) return [];
-
-      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      const schedule = emp.schedule?.[days[new Date(this.selectedDate).getDay()]];
-      if (!schedule || schedule.start === "-" || schedule.end === "-") return [];
-
-      const times = [];
-      const duration = Number(this.selectedTreatmentData.duration || 60);
-      for (let min = this.toMinutes(schedule.start); min + duration <= this.toMinutes(schedule.end); min += 15) {
-        const time = this.toTime(min);
-        const startsAt = new Date(`${this.selectedDate}T${time}:00`);
-        if (startsAt > new Date() && !this.overlapsExisting(emp.name, time, duration)) times.push(time);
-      }
-
-      return times;
+      return this.availabilityList.find((item) => item.beautician === this.selectedBeautician)?.times || [];
     },
   },
   watch: {
     selectedTreatment() {
-      this.syncSelectedBeautician();
+      this.loadAvailability();
     },
     selectedDate() {
-      this.syncSelectedTime();
+      this.loadAvailability();
     },
     selectedBeautician() {
       this.syncSelectedTime();
@@ -309,7 +317,35 @@ export default {
         console.error(error);
       }
 
-      this.syncSelectedBeautician();
+      await this.loadAvailability();
+    },
+    async loadAvailability() {
+      const requestId = ++this.availabilityRequestId;
+      if (!this.selectedDate || !this.selectedTreatment) {
+        this.availabilityList = [];
+        this.selectedBeautician = "";
+        this.selectedTime = "";
+        return;
+      }
+
+      this.availabilityLoading = true;
+      try {
+        const availability = await api.getAppointmentAvailability(
+          this.selectedDate,
+          this.selectedTreatment,
+        );
+        if (requestId !== this.availabilityRequestId) return;
+        this.availabilityList = availability;
+        this.syncSelectedBeautician();
+      } catch (error) {
+        if (requestId !== this.availabilityRequestId) return;
+        this.availabilityList = [];
+        this.selectedBeautician = "";
+        this.selectedTime = "";
+        console.error(error);
+      } finally {
+        if (requestId === this.availabilityRequestId) this.availabilityLoading = false;
+      }
     },
     syncSelectedBeautician() {
       if (!this.availableBeauticians.length) {
@@ -318,8 +354,8 @@ export default {
         return;
       }
 
-      if (!this.availableBeauticians.some((b) => b.name === this.selectedBeautician)) {
-        this.selectedBeautician = this.availableBeauticians[0].name;
+      if (!this.availableBeauticians.some((b) => b.beautician === this.selectedBeautician)) {
+        this.selectedBeautician = this.availableBeauticians[0].beautician;
       }
 
       this.syncSelectedTime();
@@ -457,34 +493,6 @@ export default {
         alert(error.message);
       }
     },
-    overlapsExisting(beautician, time, duration) {
-      const start = this.toMinutes(time);
-      const end = start + duration;
-
-      return this.appointmentsList.some((appointment) => {
-        if (appointment.status === "cancelled") return false;
-        if (!appointment.dayandhour?.startsWith(this.selectedDate)) return false;
-
-        const appointmentStart = this.toMinutes(appointment.dayandhour.split(" ")[1]);
-        const appointmentEnd = appointmentStart + Number(appointment.duration || 60);
-        const overlaps = start < appointmentEnd && end > appointmentStart;
-        if (!overlaps) return false;
-
-        const sameBeautician = appointment.beautician === beautician;
-        const sameClient =
-          appointment.client_name === this.client?.name &&
-          appointment.client_surname === this.client?.surname;
-
-        return sameBeautician || sameClient;
-      });
-    },
-    toMinutes(time) {
-      const [h, m] = time.split(":").map(Number);
-      return h * 60 + m;
-    },
-    toTime(minutes) {
-      return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-    },
   },
   mounted() {
     this.loadData();
@@ -504,18 +512,94 @@ export default {
   overflow-y: auto;
 }
 .level1-card {
-  width: 220px;
+  width: 330px;
 }
 .level2-card,
 .level3-card {
-  width: 280px;
+  width: 340px;
 }
 .new-treatment-card {
-  width: 360px;
+  width: 480px;
+  max-width: 100%;
+  overflow-y: hidden;
 }
 .beauty-points-box {
-  padding: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
   border: 1px solid #e6c5c5;
+  border-radius: 10px;
+  background: #fff8f8;
+}
+.new-treatment-title {
+  margin-bottom: 10px;
+  font-size: 1.05rem;
+}
+.field-control {
+  margin-bottom: 9px;
+}
+.availability-message {
+  margin: -2px 0 6px;
+}
+.book-button {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  width: 100%;
+  margin-top: auto;
+  box-shadow: 0 -6px 12px rgba(255, 255, 255, 0.9);
+}
+.price-list-header,
+.price-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 58px;
+  align-items: center;
+  gap: 10px;
+}
+.price-list-header {
+  padding: 6px 10px;
+  border-bottom: 2px solid #8b0000;
+  color: #786868;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.price-list-row {
+  padding: 10px;
+  border-bottom: 1px solid #ead6d6;
+}
+.price-list-row:nth-of-type(even) {
+  background: rgba(255, 248, 248, 0.75);
+}
+.treatment-name {
+  font-weight: 600;
+  line-height: 1.2;
+}
+.treatment-duration {
+  color: #786868;
+  font-size: 0.82rem;
+  text-align: right;
+}
+.treatment-price,
+.points-badge {
+  flex-shrink: 0;
+  color: #8b0000;
+  font-weight: 700;
+}
+.treatment-price,
+.price-list-header span:not(:first-child) {
+  text-align: right;
+}
+.points-badge {
+  min-width: 32px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #8b0000;
+  color: white;
+  text-align: center;
+}
+.treatments-points-box {
+  padding: 10px;
   border-radius: 10px;
   background: #fff8f8;
 }
@@ -529,5 +613,10 @@ export default {
 .btn-danger {
   background: #8b0000;
   border: none;
+}
+@media (max-width: 576px) {
+  .new-treatment-card {
+    overflow-y: auto;
+  }
 }
 </style>

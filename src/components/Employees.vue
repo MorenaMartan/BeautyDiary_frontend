@@ -75,9 +75,7 @@
       <div class="card-header fw-bold text-danger d-flex justify-content-between align-items-center">
         <span>{{ activeLevel3Label }}</span>
         <span
-          v-if="currentUser.role !== 'Admin' &&
-            !(activeLevel3 === 'vacation' && canEditSelectedVacation) &&
-            !(activeLevel3 === 'schedule' && canEditSelectedSchedule)"
+          v-if="currentUser.role !== 'Admin' && !canEditActiveSection"
           class="badge read-only-badge"
         >
           View only
@@ -92,8 +90,8 @@
               type="text"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.name"
-              :disabled="currentUser.role !== 'Admin'"
-              @blur="persistSelectedEmployee"
+              :disabled="!canEditSelectedProfile"
+              @blur="persistSelectedProfile"
             />
           </div>
 
@@ -103,8 +101,8 @@
               type="text"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.surname"
-              :disabled="currentUser.role !== 'Admin'"
-              @blur="persistSelectedEmployee"
+              :disabled="!canEditSelectedProfile"
+              @blur="persistSelectedProfile"
             />
           </div>
 
@@ -114,8 +112,8 @@
               type="date"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.birthday"
-              :disabled="currentUser.role !== 'Admin'"
-              @blur="persistSelectedEmployee"
+              :disabled="!canEditSelectedProfile"
+              @blur="persistSelectedProfile"
             />
           </div>
 
@@ -125,8 +123,8 @@
               type="text"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.mobile"
-              :disabled="currentUser.role !== 'Admin'"
-              @blur="persistSelectedEmployee"
+              :disabled="!canEditSelectedProfile"
+              @blur="persistSelectedProfile"
             />
           </div>
 
@@ -136,12 +134,12 @@
               type="email"
               class="form-control form-control-sm text-danger"
               v-model="selectedEmployee.email"
-              :disabled="currentUser.role !== 'Admin'"
-              @blur="persistSelectedEmployee"
+              :disabled="!canEditSelectedProfile"
+              @blur="persistSelectedProfile"
             />
           </div>
 
-          <div v-if="currentUser.role === 'Admin'" class="mb-2">
+          <div v-if="canEditSelectedProfile" class="mb-2">
             <label class="form-label fw-bold">New password</label>
             <input
               type="password"
@@ -190,57 +188,57 @@
 
         <div v-else-if="activeLevel3 === 'specialty'" class="specialty-panel">
           <div class="specialty-heading">
-            <div class="specialty-heading-icon">S</div>
+            <div class="specialty-heading-icon">T</div>
             <div>
-              <h6>Employee specialties</h6>
-              <p>Assign services that {{ selectedEmployee.name }} can perform.</p>
+              <h6>Employee treatments</h6>
+              <p>Assign treatments from the Price List that {{ selectedEmployee.name }} can perform.</p>
             </div>
           </div>
 
           <div class="specialty-section">
-            <label class="specialty-label">Assign a specialty</label>
+            <label class="specialty-label">Assign a treatment</label>
             <div class="specialty-action-row">
               <select
                 class="form-select specialty-control"
-                v-model="selectedSpecialty"
-                :disabled="currentUser.role !== 'Admin'"
+                v-model="selectedTreatment"
+                :disabled="!canEditSelectedTreatments"
               >
-                <option v-for="s in specialties" :key="s" :value="s">
-                  {{ s }}
+                <option v-for="treatment in treatments" :key="treatment.id" :value="treatment.name">
+                  {{ treatment.name }} ({{ treatment.specialty }})
                 </option>
               </select>
 
               <button
                 type="button"
                 class="specialty-primary-button"
-                :disabled="currentUser.role !== 'Admin' || !selectedSpecialty"
-                @click="assignSpecialty"
+                :disabled="!canEditSelectedTreatments || !selectedTreatment"
+                @click="assignTreatment"
               >
                 Assign
               </button>
             </div>
 
-            <div v-if="selectedEmployee.specialties?.length" class="specialty-chip-list">
+            <div v-if="selectedEmployee.treatments?.length" class="specialty-chip-list">
               <span
-                v-for="s in selectedEmployee.specialties"
-                :key="s"
+                v-for="treatment in selectedEmployee.treatments"
+                :key="treatment"
                 class="specialty-chip specialty-chip-assigned"
               >
                 <span class="specialty-chip-dot"></span>
-                {{ s }}
+                {{ treatment }}
                 <button
                   type="button"
                   class="specialty-delete"
-                  :disabled="currentUser.role !== 'Admin'"
-                  :aria-label="`Remove ${s} from employee`"
-                  @click="removeSpecialty(s)"
+                  :disabled="!canEditSelectedTreatments"
+                  :aria-label="`Remove ${treatment} from employee`"
+                  @click="removeTreatment(treatment)"
                 >
                   &times;
                 </button>
               </span>
             </div>
             <div v-else class="specialty-empty-state">
-              No specialties assigned yet.
+              No treatments assigned yet. Legacy category assignments remain active until a treatment is assigned.
             </div>
           </div>
 
@@ -249,42 +247,19 @@
           <div class="specialty-section">
             <div class="specialty-section-title">
               <div>
-                <label class="specialty-label">Manage specialties</label>
-                <p>Create or remove options available to the whole team.</p>
+                <label class="specialty-label">Treatments from Price List</label>
+                <p>Add and edit treatments in Settings → Price List.</p>
               </div>
-              <span class="specialty-count">{{ specialties.length }}</span>
-            </div>
-
-            <div class="specialty-action-row">
-              <input
-                v-model.trim="newSpecialty"
-                class="form-control specialty-control"
-                placeholder="e.g. Facial treatment"
-                :disabled="currentUser.role !== 'Admin'"
-                @keyup.enter="addSpecialty"
-              />
-              <button
-                type="button"
-                class="specialty-secondary-button"
-                :disabled="currentUser.role !== 'Admin' || !newSpecialty"
-                @click="addSpecialty"
-              >
-                Add new
-              </button>
+              <span class="specialty-count">{{ treatments.length }}</span>
             </div>
 
             <div class="specialty-chip-list specialty-library">
-              <span v-for="s in specialties" :key="s" class="specialty-chip specialty-chip-library">
-                {{ s }}
-                <button
-                  type="button"
-                  class="specialty-delete specialty-delete-muted"
-                  :disabled="currentUser.role !== 'Admin'"
-                  :aria-label="`Delete ${s}`"
-                  @click="deleteSpecialty(s)"
-                >
-                  &times;
-                </button>
+              <span
+                v-for="treatment in treatments"
+                :key="treatment.id"
+                class="specialty-chip specialty-chip-library"
+              >
+                {{ treatment.name }} · {{ treatment.specialty }}
               </span>
             </div>
           </div>
@@ -292,13 +267,20 @@
 
         <div v-else-if="activeLevel3 === 'productOrders'">
           <div
-            v-for="emp in selectedEmployee.role === 'Admin'
-              ? employees
-              : [selectedEmployee]"
+            v-for="emp in [selectedEmployee]"
             :key="emp.name"
             class="mb-3"
           >
-            <div class="fw-bold mb-2">{{ emp.name }}</div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="fw-bold">{{ emp.name }}</div>
+              <button
+                v-if="canEditEmployeeProductOrders(emp)"
+                class="btn btn-sm btn-danger text-white"
+                @click="addEmployeeProductOrder(emp)"
+              >
+                + Add order
+              </button>
+            </div>
 
             <div
               v-for="(order, index) in emp.productOrders"
@@ -309,16 +291,23 @@
                 type="text"
                 class="form-control form-control-sm flex-grow-1"
                 v-model="order.text"
-                :disabled="currentUser.role !== 'Admin'"
-                @input="handleInput(emp, index)"
-                @blur="persistEmployee(emp)"
+                :disabled="order.checked || !canEditEmployeeProductOrders(emp)"
+                @blur="saveEmployeeProductOrder(emp, index)"
               />
+              <button
+                class="btn btn-sm btn-outline-danger"
+                :disabled="order.checked || !canEditEmployeeProductOrders(emp)"
+                @click="deleteEmployeeProductOrder(emp, index)"
+              >
+                Delete
+              </button>
               <input
+                v-if="currentUser.role === 'Admin'"
                 type="checkbox"
                 v-model="order.checked"
                 class="custom-checkbox"
-                :disabled="currentUser.role !== 'Admin'"
-                @change="persistEmployee(emp)"
+                :disabled="!order.text.trim()"
+                @change="toggleEmployeeProductOrder(emp, index)"
               />
             </div>
           </div>
@@ -505,7 +494,7 @@
 </template>
 
 <script>
-import { specialties, createEmployee } from "@/data/employeesData.js";
+import { createEmployee } from "@/data/employeesData.js";
 import { appointments } from "@/data/appointments";
 import { findTreatment } from "@/data/treatmentsData";
 import { getCurrentUser } from "@/data/auth";
@@ -524,13 +513,12 @@ export default {
     return {
       showAddForm: false,
       newEmployeeName: "",
-      selectedSpecialty: "Haircut",
-      newSpecialty: "",
+      selectedTreatment: "",
       selectedEmployee: null,
       selectedEmployeeRole: "",
       newEmployeePassword: "",
       activeLevel3: null,
-      specialties,
+      treatments: [],
       hours: Array.from(
         { length: 15 },
         (_, i) => `${String(7 + i).padStart(2, "0")}:00`,
@@ -578,6 +566,25 @@ export default {
   },
 
   computed: {
+    isSelectedOwnEmployee() {
+      return Boolean(
+        this.selectedEmployee &&
+        this.currentUser.role === "Beautician" &&
+        (this.selectedEmployee.id === this.currentUser.id ||
+          this.selectedEmployee.username === this.currentUser.username),
+      );
+    },
+    canEditSelectedProfile() {
+      return this.currentUser.role === "Admin" || this.isSelectedOwnEmployee;
+    },
+    canEditSelectedTreatments() {
+      return this.currentUser.role === "Admin" || this.isSelectedOwnEmployee;
+    },
+    canEditActiveSection() {
+      if (this.currentUser.role === "Admin") return true;
+      if (!this.isSelectedOwnEmployee) return false;
+      return ["edit", "specialty", "schedule", "productOrders", "vacation"].includes(this.activeLevel3);
+    },
     canEditSelectedSchedule() {
       return Boolean(
         this.selectedEmployee &&
@@ -722,39 +729,33 @@ export default {
       this.newEmployeeName = "";
       this.showAddForm = false;
     },
-    async assignSpecialty() {
-      if (this.currentUser.role !== "Admin" || !this.selectedSpecialty) return;
-      if (!this.selectedEmployee.specialties) this.selectedEmployee.specialties = [];
-      if (!this.selectedEmployee.specialties.includes(this.selectedSpecialty)) {
-        this.selectedEmployee.specialties.push(this.selectedSpecialty);
-      }
-      await this.persistSelectedEmployee();
-    },
-    async removeSpecialty(specialty) {
-      if (this.currentUser.role !== "Admin" || !this.selectedEmployee) return;
-      this.selectedEmployee.specialties = this.selectedEmployee.specialties.filter((item) => item !== specialty);
-      await this.persistSelectedEmployee();
-    },
-    async addSpecialty() {
-      if (this.currentUser.role !== "Admin") return;
-      const newSpec = this.newSpecialty.trim();
-      if (newSpec && !this.specialties.includes(newSpec)) {
-        try {
-          this.specialties = await api.createSpecialty(newSpec, this.currentUser.role);
-          this.selectedSpecialty = newSpec;
-          this.newSpecialty = "";
-        } catch (error) {
-          alert(error.message);
-        }
-      }
-    },
-    async deleteSpecialty(specialty) {
-      if (this.currentUser.role !== "Admin") return;
+    async assignTreatment() {
+      if (!this.canEditSelectedTreatments || !this.selectedTreatment) return;
+      const assignedTreatments = this.selectedEmployee.treatments || [];
+      if (assignedTreatments.includes(this.selectedTreatment)) return;
+
       try {
-        this.specialties = await api.deleteSpecialty(specialty, this.currentUser.role);
-        this.employees.forEach((emp) => {
-          emp.specialties = emp.specialties?.filter((s) => s !== specialty) || [];
-        });
+        await api.refreshSession();
+        const savedEmployee = await api.updateEmployeeTreatments(
+          this.selectedEmployee.id,
+          [...assignedTreatments, this.selectedTreatment],
+        );
+        Object.assign(this.selectedEmployee, savedEmployee);
+        this.selectedTreatment = "";
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    async removeTreatment(treatment) {
+      if (!this.canEditSelectedTreatments || !this.selectedEmployee?.id) return;
+
+      try {
+        await api.refreshSession();
+        const savedEmployee = await api.updateEmployeeTreatments(
+          this.selectedEmployee.id,
+          this.selectedEmployee.treatments.filter((item) => item !== treatment),
+        );
+        Object.assign(this.selectedEmployee, savedEmployee);
       } catch (error) {
         alert(error.message);
       }
@@ -768,8 +769,26 @@ export default {
 
       await this.persistEmployee(this.selectedEmployee);
     },
+    async persistSelectedProfile() {
+      if (!this.canEditSelectedProfile || !this.selectedEmployee?.id) return;
+
+      try {
+        await api.refreshSession();
+        const savedEmployee = await api.updateEmployeeProfile(this.selectedEmployee.id, {
+          name: this.selectedEmployee.name,
+          surname: this.selectedEmployee.surname,
+          birthday: this.selectedEmployee.birthday,
+          mobile: this.selectedEmployee.mobile,
+          email: this.selectedEmployee.email,
+        });
+        Object.assign(this.selectedEmployee, savedEmployee);
+      } catch (error) {
+        alert(error.message);
+        await this.loadEmployees();
+      }
+    },
     async saveEmployeePassword() {
-      if (this.currentUser.role !== "Admin" || !this.selectedEmployee?.id) return;
+      if (!this.canEditSelectedProfile || !this.selectedEmployee?.id) return;
       if (this.newEmployeePassword.length < 8) {
         alert("Password must contain at least 8 characters.");
         return;
@@ -777,7 +796,7 @@ export default {
 
       try {
         await api.refreshSession();
-        await api.updateEmployee(this.selectedEmployee.id, {
+        await api.updateEmployeeProfile(this.selectedEmployee.id, {
           password: this.newEmployeePassword,
         });
         this.newEmployeePassword = "";
@@ -826,6 +845,7 @@ export default {
       }
 
       try {
+        await api.refreshSession();
         const savedEmployee = await api.updateEmployeeSchedule(
           this.selectedEmployee.id,
           this.selectedEmployee.schedule,
@@ -865,10 +885,58 @@ export default {
         alert(error.message);
       }
     },
-    handleInput(emp, index) {
-      const orders = emp.productOrders;
-      if (index === orders.length - 1 && orders[index].text.trim()) {
-        orders.push({ text: "", checked: false });
+    canEditEmployeeProductOrders(employee) {
+      return Boolean(
+        employee &&
+        (this.currentUser.role === "Admin" ||
+          (this.currentUser.role === "Beautician" &&
+            (employee.id === this.currentUser.id || employee.username === this.currentUser.username))),
+      );
+    },
+    async addEmployeeProductOrder(employee) {
+      if (!this.canEditEmployeeProductOrders(employee)) return;
+      try {
+        await api.refreshSession();
+        const order = await api.createProductOrder(employee.id, "");
+        employee.productOrders.push(order);
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    async saveEmployeeProductOrder(employee, index) {
+      const order = employee.productOrders[index];
+      if (!order || order.checked || !this.canEditEmployeeProductOrders(employee)) return;
+      try {
+        await api.refreshSession();
+        const savedOrder = await api.updateProductOrder(employee.id, index, { text: order.text });
+        Object.assign(order, savedOrder);
+      } catch (error) {
+        alert(error.message);
+        await this.loadEmployees();
+      }
+    },
+    async deleteEmployeeProductOrder(employee, index) {
+      const order = employee.productOrders[index];
+      if (!order || order.checked || !this.canEditEmployeeProductOrders(employee)) return;
+      try {
+        await api.refreshSession();
+        await api.deleteProductOrder(employee.id, index);
+        employee.productOrders.splice(index, 1);
+        if (!employee.productOrders.length) employee.productOrders.push({ text: "", checked: false });
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    async toggleEmployeeProductOrder(employee, index) {
+      const order = employee.productOrders[index];
+      if (!order || this.currentUser.role !== "Admin") return;
+      try {
+        await api.refreshSession();
+        const savedOrder = await api.updateProductOrder(employee.id, index, { checked: order.checked });
+        Object.assign(order, savedOrder);
+      } catch (error) {
+        order.checked = !order.checked;
+        alert(error.message);
       }
     },
     async toggleVacationDate(day) {
@@ -941,12 +1009,12 @@ export default {
     }
 
     try {
-      const [savedSpecialties, savedAppointments] = await Promise.all([
-        api.getSpecialties(),
+      const [savedTreatments, savedAppointments] = await Promise.all([
+        api.getTreatments(),
         api.getAppointments(),
       ]);
-      this.specialties = savedSpecialties;
-      this.selectedSpecialty = savedSpecialties[0] || "";
+      this.treatments = savedTreatments;
+      this.selectedTreatment = savedTreatments[0]?.name || "";
       this.appointmentsList = savedAppointments;
     } catch (error) {
       console.error(error);
@@ -967,6 +1035,7 @@ export default {
 
       if (!emp.reviews) emp.reviews = [];
       if (!emp.specialties) emp.specialties = [];
+      if (!emp.treatments) emp.treatments = [];
       if (!Number.isFinite(emp.vacationAllowance)) emp.vacationAllowance = this.vacationLimit;
       emp.vacations = (emp.vacations || [])
         .map((vacation) => (typeof vacation === "string" ? vacation : vacation.date))

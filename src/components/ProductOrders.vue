@@ -71,6 +71,11 @@ export default {
     };
   },
   async mounted() {
+    try {
+      await api.refreshSession();
+    } catch (error) {
+      this.errorMessage = error.message;
+    }
     await this.cleanupCheckedOrders();
     this.cleanupInterval = setInterval(this.cleanupCheckedOrders, 60 * 60 * 1000);
   },

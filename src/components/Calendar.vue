@@ -263,6 +263,11 @@ export default {
     allowedTreatments() {
       const emp = this.employeesMap[this.selectedEmployee];
       if (!emp) return this.treatmentsList;
+      const assignedTreatments = emp.treatments || [];
+      if (assignedTreatments.length) {
+        return this.treatmentsList.filter((treatment) => assignedTreatments.includes(treatment.name));
+      }
+
       const employeeSpecialties = emp.specialties || [];
       if (!employeeSpecialties.length) return this.treatmentsList;
 

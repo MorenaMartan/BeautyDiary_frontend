@@ -35,8 +35,11 @@
               </div>
               <div v-for="category in categories" :key="category" class="category-edit-row mt-2">
                 <input v-model="categoryNames[category]" class="form-control form-control-sm" />
-                <button class="btn btn-sm btn-outline-danger" @click="saveCategory(category)">
-                  Save category
+                <button class="btn btn-sm btn-danger text-white" @click="saveCategory(category)">
+                  Save
+                </button>
+                <button class="btn btn-sm btn-outline-danger" @click="deleteCategory(category)">
+                  Delete
                 </button>
               </div>
             </div>
@@ -125,6 +128,7 @@
 
           <div class="settings-section">
             <div class="section-title">Top 5 spenders last 30 days</div>
+            <div v-if="!topSpenders.length" class="small text-muted">No spending in the last 30 days.</div>
             <div
               v-for="c in topSpenders"
               :key="c.id"
@@ -142,6 +146,7 @@
 
           <div class="settings-section">
             <div class="section-title">Top 5 cancellations last 90 days</div>
+            <div v-if="!topCancelled.length" class="small text-muted">No cancellations in the last 90 days.</div>
             <div v-for="c in topCancelled" :key="c.id" class="client-row">
               <span>{{ c.name }} {{ c.surname }}</span>
               <span>{{ c.cancelledLast90Days }}</span>
@@ -150,6 +155,7 @@
 
           <div class="settings-section">
             <div class="section-title">New clients last 30 days</div>
+            <div v-if="!newClients.length" class="small text-muted">No new clients in the last 30 days.</div>
             <div v-for="c in newClients" :key="c.id" class="client-row">
               <span>{{ c.name }} {{ c.surname }}</span>
               <span>{{ c.email }}</span>
@@ -158,6 +164,7 @@
 
           <div class="settings-section">
             <div class="section-title">Clients without visit last 60 days</div>
+            <div v-if="!inactiveClients.length" class="small text-muted">All clients visited within the last 60 days.</div>
             <div
               v-for="c in inactiveClients"
               :key="c.id"
@@ -277,8 +284,6 @@
 
 <script>
 import { clients } from "@/data/clientsData";
-import { treatments } from "@/data/treatmentsData";
-import { specialties } from "@/data/employeesData";
 import { getCurrentUser } from "@/data/auth";
 import { api } from "@/services/api";
 
@@ -293,10 +298,10 @@ export default {
     return {
       selectedMenu: "Price List",
       menu: ["Price List", "Clients", "Beauty Points"],
-      treatments: [...treatments],
+      treatments: [],
       clients,
-      categories: [...specialties],
-      categoryNames: Object.fromEntries(specialties.map((category) => [category, category])),
+      categories: [],
+      categoryNames: {},
       clientStats: {
         topSpenders: [],
         mostCancelled: [],
@@ -350,8 +355,12 @@ export default {
       if (!category) return;
 
       try {
-        this.categories = await api.createSpecialty(category, this.currentUser.role);
+        await api.refreshSession();
+        this.categories = await api.createSpecialty(category);
         this.categoryNames = Object.fromEntries(this.categories.map((name) => [name, name]));
+        this.newTreatment.specialty = this.categories.find(
+          (name) => name.toLowerCase() === category.toLowerCase(),
+        ) || category;
         this.newCategory = "";
       } catch (error) {
         alert(error.message);
@@ -370,7 +379,8 @@ export default {
       if (!name || name === currentName) return;
 
       try {
-        await api.updateSpecialty(currentName, name, this.currentUser.role);
+        await api.refreshSession();
+        await api.updateSpecialty(currentName, name);
         this.categories = this.categories.map((category) => (category === currentName ? name : category));
         this.treatments.forEach((treatment) => {
           if (treatment.specialty === currentName) treatment.specialty = name;
@@ -380,11 +390,28 @@ export default {
         alert(error.message);
       }
     },
+    async deleteCategory(category) {
+      if (this.treatments.some((treatment) => treatment.specialty === category)) {
+        alert("Move or delete this category's treatments before deleting the category.");
+        return;
+      }
+      if (!confirm(`Delete category "${category}"?`)) return;
+
+      try {
+        await api.refreshSession();
+        this.categories = await api.deleteSpecialty(category);
+        this.categoryNames = Object.fromEntries(this.categories.map((name) => [name, name]));
+        if (this.newTreatment.specialty === category) this.newTreatment.specialty = "";
+      } catch (error) {
+        alert(error.message);
+      }
+    },
     async addTreatment() {
       if (!this.canAddTreatment) return;
 
       try {
-        const treatment = await api.createTreatment(this.newTreatment, this.currentUser.role);
+        await api.refreshSession();
+        const treatment = await api.createTreatment(this.newTreatment);
         this.treatments.push(treatment);
         this.newTreatment = { name: "", specialty: "", price: null, duration: null };
       } catch (error) {
@@ -450,20 +477,41 @@ export default {
   },
   async mounted() {
     try {
-      const [savedTreatments, savedCategories, savedClients, savedAppointments, clientStats, loyaltySettings] = await Promise.all([
+      await api.refreshSession();
+    } catch (error) {
+      console.error(error);
+      alert(error.message);
+      return;
+    }
+
+    try {
+      const [savedTreatments, savedCategories] = await Promise.all([
         api.getTreatments(),
         api.getSpecialties(),
-        api.getClients(),
-        api.getAppointments(),
-        api.getClientStats(),
-        api.getLoyaltySettings(),
       ]);
       this.treatments = savedTreatments;
       this.categories = savedCategories;
       this.categoryNames = Object.fromEntries(savedCategories.map((category) => [category, category]));
+    } catch (error) {
+      console.error(error);
+      alert(`Price list could not be loaded from database: ${error.message}`);
+    }
+
+    try {
+      this.clientStats = await api.getClientStats();
+    } catch (error) {
+      console.error(error);
+      alert(`Client statistics could not be loaded: ${error.message}`);
+    }
+
+    try {
+      const [savedClients, savedAppointments, loyaltySettings] = await Promise.all([
+        api.getClients(),
+        api.getAppointments(),
+        api.getLoyaltySettings(),
+      ]);
       this.clients = savedClients;
       this.appointments = savedAppointments;
-      this.clientStats = clientStats;
       this.loyaltySettings = loyaltySettings;
       this.selectedClient = this.sortedClients[0] || null;
     } catch (error) {
@@ -491,7 +539,7 @@ export default {
   max-height: 100%;
 }
 .level2-card {
-  width: 620px;
+  width: 780px;
   max-height: 100%;
 }
 .list-group-item {
@@ -513,10 +561,21 @@ export default {
   border-bottom: 1px solid rgba(139, 0, 0, 0.2);
   padding-bottom: 12px;
 }
-.category-add-row,
-.category-edit-row {
-  display: flex;
+.category-add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 10px;
+}
+.category-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+.category-add-row .btn,
+.category-edit-row .btn {
+  white-space: nowrap;
 }
 .add-row {
   border-bottom: 1px solid rgba(139, 0, 0, 0.2);

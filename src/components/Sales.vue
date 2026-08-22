@@ -59,7 +59,10 @@
         </div>
 
         <div class="export-actions">
-          <button class="btn export-main-btn" :disabled="isExporting" @click="exportPDF">
+          <button class="btn export-preview-btn" :disabled="isExporting" @click="exportPDF('view')">
+            View as PDF
+          </button>
+          <button class="btn export-main-btn" :disabled="isExporting" @click="exportPDF('download')">
             {{ isExporting ? "Generating PDF..." : "Export as PDF" }}
           </button>
         </div>
@@ -322,8 +325,14 @@ export default {
     formatMetric(value) {
       return Number(value).toLocaleString("hr-HR", { maximumFractionDigits: 2 });
     },
-    async exportPDF() {
+    async exportPDF(mode) {
       if (this.isExporting) return;
+
+      const previewWindow = mode === "view" ? window.open("about:blank", "_blank") : null;
+      if (mode === "view" && !previewWindow) {
+        window.alert("Allow pop-ups to preview the PDF.");
+        return;
+      }
 
       this.isExporting = true;
       await this.$nextTick();
@@ -497,8 +506,13 @@ export default {
           pdf.text("Beauty Diary - Internal sales report", margin, pageHeight - 7);
           pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin, pageHeight - 7, { align: "right" });
         }
-        pdf.save(`beauty-diary-sales-${this.selectedMenu === "Daily sales" ? this.selectedDate : this.selectedMonth}.pdf`);
+        if (mode === "view") {
+          previewWindow.location.href = pdf.output("bloburl");
+        } else {
+          pdf.save(`beauty-diary-sales-${this.selectedMenu === "Daily sales" ? this.selectedDate : this.selectedMonth}.pdf`);
+        }
       } catch (error) {
+        previewWindow?.close();
         console.error("PDF export failed:", error);
         window.alert("PDF report could not be generated. Please try again once the charts have loaded.");
       } finally {
@@ -589,7 +603,14 @@ export default {
   border: none;
 }
 
-.export-main-btn:disabled {
+.export-preview-btn {
+  border: 1px solid #5a0f0f;
+  color: #5a0f0f;
+  background: white;
+}
+
+.export-main-btn:disabled,
+.export-preview-btn:disabled {
   cursor: wait;
   opacity: 0.7;
 }
@@ -597,6 +618,7 @@ export default {
 .export-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
   margin-top: 16px;
 }
 </style>

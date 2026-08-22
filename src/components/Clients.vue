@@ -6,7 +6,11 @@
 
     <div class="d-flex gap-3 flex-nowrap h-100">
       <div class="card level1-card p-2 flex-shrink-0">
-        <div class="btn btn-sm btn-danger text-white mb-2" @click="addClient">
+        <div
+          v-if="currentUser.role === 'Admin' || currentUser.role === 'Beautician'"
+          class="btn btn-sm btn-danger text-white mb-2"
+          @click="openAddClient"
+        >
           + Add new
         </div>
 
@@ -24,7 +28,50 @@
         </div>
       </div>
 
-      <div v-if="selectedClient" class="card level2-card p-3 flex-shrink-0">
+      <form v-if="showAddForm" class="card level2-card add-client-card p-3 flex-shrink-0" @submit.prevent="addClient">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <b>Add new client</b>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-sm btn-danger text-white" :disabled="!canAddClient">
+              Save client
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @click="cancelAddClient">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <label class="form-label">Name *</label>
+        <input v-model="newClient.name" class="form-control form-control-sm mb-2" required />
+
+        <label class="form-label">Surname</label>
+        <input v-model="newClient.surname" class="form-control form-control-sm mb-2" />
+
+        <label class="form-label">Username *</label>
+        <input v-model="newClient.username" class="form-control form-control-sm mb-2" required autocomplete="off" />
+
+        <label class="form-label">Password *</label>
+        <input
+          v-model="newClient.password"
+          type="password"
+          minlength="8"
+          class="form-control form-control-sm mb-1"
+          required
+          autocomplete="new-password"
+        />
+        <div class="small text-muted mb-2">At least 8 characters.</div>
+
+        <label class="form-label">Email</label>
+        <input v-model="newClient.email" type="email" class="form-control form-control-sm mb-2" />
+
+        <label class="form-label">Mobile</label>
+        <input v-model="newClient.mobile" class="form-control form-control-sm mb-2" />
+
+        <label class="form-label">Birthday</label>
+        <input v-model="newClient.birthday" type="date" class="form-control form-control-sm mb-3" />
+      </form>
+
+      <div v-else-if="selectedClient" class="card level2-card p-3 flex-shrink-0">
         <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
           <b>Client details</b>
           <div class="client-actions">
@@ -106,9 +153,17 @@
             {{ loyaltySettings.discountPercentage }}% discount available
           </div>
         </div>
+
+        <button
+          v-if="currentUser.role === 'Admin' || currentUser.role === 'Beautician'"
+          class="btn btn-outline-danger w-100 mt-3"
+          @click="deleteClient"
+        >
+          Delete client
+        </button>
       </div>
 
-      <div v-if="selectedClient" class="card level3-card p-3 flex-shrink-0">
+      <div v-if="selectedClient && !showAddForm" class="card level3-card p-3 flex-shrink-0">
         <b class="mb-2">Client Diary</b>
 
         <div
@@ -147,7 +202,7 @@
         </div>
       </div>
 
-      <div v-if="selectedClient" class="card level3-card p-3 flex-shrink-0">
+      <div v-if="selectedClient && !showAddForm" class="card level3-card p-3 flex-shrink-0">
         <b class="mb-2">Appointments</b>
 
         <div class="appointment-section">
@@ -187,20 +242,35 @@
 </template>
 
 <script>
-import { clients } from "@/data/clientsData";
-import { appointments } from "@/data/appointments";
+import { getCurrentUser } from "@/data/auth";
 import { api } from "@/services/api";
 import { jsPDF } from "jspdf";
 
 export default {
   name: "Clients",
+  props: {
+    currentUser: {
+      type: Object,
+      default: () => getCurrentUser(),
+    },
+  },
   data() {
     return {
       search: "",
       selectedClient: null,
       editMode: false,
-      clientsList: clients,
-      appointmentsList: appointments,
+      showAddForm: false,
+      newClient: {
+        name: "",
+        surname: "",
+        username: "",
+        password: "",
+        email: "",
+        mobile: "",
+        birthday: "",
+      },
+      clientsList: [],
+      appointmentsList: [],
       loyaltySettings: {
         eurosSpent: 15,
         pointsEarned: 1,
@@ -210,6 +280,13 @@ export default {
     };
   },
   computed: {
+    canAddClient() {
+      return Boolean(
+        this.newClient.name.trim() &&
+        this.newClient.username.trim() &&
+        this.newClient.password.length >= 8,
+      );
+    },
     filteredClients() {
       return this.clientsList
         .filter((c) =>
@@ -254,22 +331,43 @@ export default {
     },
   },
   methods: {
+    emptyClientForm() {
+      return {
+        name: "",
+        surname: "",
+        username: "",
+        password: "",
+        email: "",
+        mobile: "",
+        birthday: "",
+      };
+    },
     selectClient(c) {
       this.selectedClient = c;
+      this.showAddForm = false;
       this.editMode = false;
       this.activeLevel3 = "diary";
     },
+    openAddClient() {
+      this.newClient = this.emptyClientForm();
+      this.showAddForm = true;
+      this.editMode = false;
+    },
+    cancelAddClient() {
+      this.showAddForm = false;
+      this.newClient = this.emptyClientForm();
+    },
     async addClient() {
-      try {
-        const newClient = await api.createClient({
-          name: "New",
-          surname: "Client",
-          username: `client${Date.now()}`,
-        });
-        this.clientsList.push(newClient);
+      if (!this.canAddClient) return;
 
+      try {
+        await api.refreshSession();
+        const newClient = await api.createClient(this.newClient);
+        this.clientsList.push(newClient);
         this.selectedClient = newClient;
-        this.editMode = true;
+        this.showAddForm = false;
+        this.newClient = this.emptyClientForm();
+        this.editMode = false;
       } catch (error) {
         alert(error.message);
       }
@@ -283,6 +381,23 @@ export default {
       try {
         const savedClient = await api.updateClient(this.selectedClient.id, this.selectedClient);
         Object.assign(this.selectedClient, savedClient);
+        this.editMode = false;
+      } catch (error) {
+        alert(error.message);
+      }
+    },
+    async deleteClient() {
+      if (!this.selectedClient?.id) return;
+
+      const client = this.selectedClient;
+      const clientName = `${client.name} ${client.surname}`.trim();
+      if (!confirm(`Delete client "${clientName}"?`)) return;
+
+      try {
+        await api.refreshSession();
+        await api.deleteClient(client.id);
+        this.clientsList = this.clientsList.filter((item) => item.id !== client.id);
+        this.selectedClient = null;
         this.editMode = false;
       } catch (error) {
         alert(error.message);
@@ -483,22 +598,22 @@ export default {
   },
   async mounted() {
     try {
-      const [savedClients, savedAppointments, loyaltySettings] = await Promise.all([
-        api.getClients(),
+      this.clientsList = await api.getClients();
+    } catch (error) {
+      console.error(error);
+      alert(`Clients could not be loaded from database: ${error.message}`);
+      return;
+    }
+
+    try {
+      const [savedAppointments, loyaltySettings] = await Promise.all([
         api.getAppointments(),
         api.getLoyaltySettings(),
       ]);
-      this.clientsList = savedClients;
       this.appointmentsList = savedAppointments;
       this.loyaltySettings = loyaltySettings;
     } catch (error) {
       console.error(error);
-      if (import.meta.env.DEV) {
-        this.clientsList = clients;
-        this.appointmentsList = appointments;
-      } else {
-        alert(error.message);
-      }
     }
   },
 };
@@ -524,6 +639,11 @@ export default {
 }
 .level2-card {
   width: 280px;
+}
+.add-client-card {
+  width: 380px;
+  min-width: 380px;
+  overflow-y: auto;
 }
 .level3-card {
   width: 350px;
